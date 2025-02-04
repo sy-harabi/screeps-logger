@@ -37,6 +37,57 @@ const LEVEL_COLORS = {
   DEFAULT: "#dddddd", // Light Gray
 }
 
+/**
+ * Defines a log function that takes a message and optional log options.
+ * @callback LogFunction
+ * @param {string} message - The log message.
+ * @param {object} [options] - Additional log options.
+ * @param {string} [options.roomName] - The room associated with the log entry (if applicable). If provided, a hyperlink to the room or room history is included.
+ * @param {boolean} [options.notify] - Whether to send a notification via email (default: true for WARN and higher).
+ * @param {boolean} [options.terminalOnly] - If true, logs only to the terminal and does not save to memory.
+ * @param {number} [options.tick] - The game tick at which the log entry was created.
+ * @returns {void}
+ */
+
+/**
+ * Represents a logging category.
+ * Each category supports multiple log levels such as FATAL, ERROR, WARN, INFO, DEBUG, and TRACE.
+ *
+ * @typedef {Object} CategoryLogger
+ * @property {LogFunction} fatal - Logs critical system errors that may crash the bot. Used for severe failures.
+ * @property {LogFunction} error - Logs recoverable errors that indicate failures but allow execution to continue.
+ * @property {LogFunction} warn - Logs warnings about potential issues that do not impact immediate execution but may cause problems later.
+ * @property {LogFunction} info - Logs important operational messages, such as status updates or milestones.
+ * @property {LogFunction} debug - Logs messages useful for debugging, typically containing detailed information.
+ * @property {LogFunction} trace - Logs highly detailed execution flow information for tracking system behavior.
+ */
+
+/**
+ * @callback LogError
+ * @param {Error} error - The error object.
+ * @param {string} description - A brief description of the error.
+ * @param {string} [roomName] - The room where the error occurred. A hyperlink to the room or room history is included in the log.
+ */
+
+/**
+ * The main logger object that provides categorized logging.
+ * @typedef {Object} Logger
+ * @property {CategoryLogger} general - Logs system-wide messages that do not fit into a specific category.
+ * @property {CategoryLogger} economy - Logs financial transactions, resource trades, and economic events.
+ * @property {CategoryLogger} combat - Logs attack, defense, and strategic battle-related events.
+ * @property {CategoryLogger} defense - Logs wall, rampart, and turret defense status and actions.
+ * @property {CategoryLogger} resource - Logs energy, minerals, and other resource management activities.
+ * @property {CategoryLogger} movement - Logs creep and unit pathfinding, movement efficiency, and travel issues.
+ * @property {CategoryLogger} events - Logs major in-game events such as room claims, hostile attacks, and AI decisions.
+ * @property {CategoryLogger} spawn - Logs spawning operations and creep creation status.
+ * @property {CategoryLogger} construct - Logs construction, repair, and building-related activities.
+ * @property {LogError} logError - Logs unexpected errors with stack traces for debugging.
+ * @property {()=>number} getLevel - Retrieves the current log level (0 = FATAL, 5 = TRACE).
+ * @property {(level: number) => void} setLevel - Sets the logging level to control verbosity.
+ * @property {object} logs
+ */
+
+/** @type {Logger} */
 const logger = {
   get logs() {
     if (!Memory._loggerLogs) {
@@ -70,6 +121,11 @@ const logger = {
   },
 }
 
+/**
+ * Creates a logger for a specific category.
+ * @param {string} category
+ * @returns {CategoryLogger}
+ */
 function createCategoryLogger(category) {
   return {
     fatal(message, options = {}) {
