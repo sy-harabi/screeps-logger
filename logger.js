@@ -4,8 +4,6 @@ const MAX_LOG_NUM = 50
 
 const NOTIFY_INTERVAL = 60
 
-let a
-
 const PATH = {
   jaysee: "http://jayseegames.localhost:8080/(http://jayseegames.com:21025)",
   shardSeason: "https://screeps.com/season",
