@@ -10,8 +10,6 @@ const PATH = {
   DEFAULT: "https://screeps.com/a",
 }
 
-let a
-
 const CATEGORY = ["general", "economy", "combat", "defense", "resource", "movement", "events", "spawn", "construct"]
 
 const LEVEL_NAMES = ["FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
