@@ -159,11 +159,11 @@ CATEGORY.forEach((category) => {
 })
 
 /**
- *
- * @param {number} level
- * @param {string} category
- * @param {string} message
- * @param {object} options
+ * Logs a message if the log level is enabled, supporting lambda functions for deferred evaluation.
+ * @param {number} level - The log level.
+ * @param {string} category - The category of the log.
+ * @param {string | (() => string)} message - The log message or a function returning the log message.
+ * @param {object} options - Additional log options.
  * @param {string|undefined} options.roomName - roomName that event happend. If exists, hyperlink to room or history is attached to log
  * @param {boolean|false} options.notify - If true, notify the log via email. If undefined, notify if level is warn or more important
  * @param {boolean|false} options.terminalOnly - If true, don't push log into Memory.
@@ -172,6 +172,10 @@ CATEGORY.forEach((category) => {
 function loggerLog(level, category, message, options = {}) {
   if (level > logger.getLevel()) {
     return
+  }
+
+  if (typeof message === "function") {
+    message = message()
   }
 
   const roomName = options.roomName
