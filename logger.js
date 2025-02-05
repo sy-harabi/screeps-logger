@@ -10,8 +10,6 @@ const PATH = {
   DEFAULT: "https://screeps.com/a",
 }
 
-const CATEGORY = ["general", "economy", "combat", "defense", "resource", "movement", "events", "spawn", "construct"]
-
 const LEVEL_NAMES = ["FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
 
 const LOG_LEVELS = {
@@ -37,240 +35,284 @@ const LEVEL_COLORS = {
   DEFAULT: "#dddddd", // Light Gray
 }
 
-/**
- * Defines a log function that takes a message and optional log options.
- * @callback LogFunction
- * @param {string} message - The log message.
- * @param {object} [options] - Additional log options.
- * @param {string} [options.roomName] - The room associated with the log entry (if applicable). If provided, a hyperlink to the room or room history is included.
- * @param {boolean} [options.notify] - Whether to send a notification via email (default: true for WARN and higher).
- * @param {boolean} [options.terminalOnly] - If true, logs only to the terminal and does not save to memory.
- * @param {number} [options.tick] - The game tick at which the log entry was created.
- * @returns {void}
- */
-
-/**
- * Represents a logging category.
- * Each category supports multiple log levels such as FATAL, ERROR, WARN, INFO, DEBUG, and TRACE.
- *
- * @typedef {Object} CategoryLogger
- * @property {LogFunction} fatal - Logs critical system errors that may crash the bot. Used for severe failures.
- * @property {LogFunction} error - Logs recoverable errors that indicate failures but allow execution to continue.
- * @property {LogFunction} warn - Logs warnings about potential issues that do not impact immediate execution but may cause problems later.
- * @property {LogFunction} info - Logs important operational messages, such as status updates or milestones.
- * @property {LogFunction} debug - Logs messages useful for debugging, typically containing detailed information.
- * @property {LogFunction} trace - Logs highly detailed execution flow information for tracking system behavior.
- */
-
-/**
- * @callback LogError
- * @param {Error} error - The error object.
- * @param {string} description - A brief description of the error.
- * @param {string} [roomName] - The room where the error occurred. A hyperlink to the room or room history is included in the log.
- */
-
-/**
- * The main logger object that provides categorized logging.
- * @typedef {Object} Logger
- * @property {CategoryLogger} general - Logs system-wide messages that do not fit into a specific category.
- * @property {CategoryLogger} economy - Logs financial transactions, resource trades, and economic events.
- * @property {CategoryLogger} combat - Logs attack, defense, and strategic battle-related events.
- * @property {CategoryLogger} defense - Logs wall, rampart, and turret defense status and actions.
- * @property {CategoryLogger} resource - Logs energy, minerals, and other resource management activities.
- * @property {CategoryLogger} movement - Logs creep and unit pathfinding, movement efficiency, and travel issues.
- * @property {CategoryLogger} events - Logs major in-game events such as room claims, hostile attacks, and AI decisions.
- * @property {CategoryLogger} spawn - Logs spawning operations and creep creation status.
- * @property {CategoryLogger} construct - Logs construction, repair, and building-related activities.
- * @property {LogError} logError - Logs unexpected errors with stack traces for debugging.
- * @property {()=>number} getLevel - Retrieves the current log level (0 = FATAL, 5 = TRACE).
- * @property {(level: number) => void} setLevel - Sets the logging level to control verbosity.
- * @property {object} logs
- */
-
-/** @type {Logger} */
-const logger = {
-  get logs() {
-    if (!Memory._loggerLogs) {
-      Memory._loggerLogs = { index: 0 }
+class Logger {
+  /**
+   *
+   * @param {string|[string]} [names]
+   */
+  static stream(names) {
+    if (!Memory._logs) {
+      Memory._logs = {}
     }
-    return Memory._loggerLogs
-  },
+
+    if (names === undefined) {
+      delete Memory._logs._stream
+      return
+    }
+
+    if (typeof names === "string") {
+      names = [names]
+    }
+
+    Memory._logs._stream = names
+  }
 
   /**
    *
-   * @param {number} level
+   * @returns {[string]}
    */
+  static getStreamTarget() {
+    if (!Memory._logs) {
+      Memory._logs = {}
+    }
+    return Memory._logs._stream
+  }
+
+  static getReplayLink(roomName, tick = Game.time, msg = "replay") {
+    const front = PATH[Game.shard.name] || PATH["DEFAULT"]
+
+    return (
+      "<a href='" +
+      front +
+      "/#!/history/" +
+      Game.shard.name +
+      "/" +
+      roomURLescape(roomName) +
+      "?t=" +
+      tick +
+      "'>" +
+      msg +
+      "</a>"
+    )
+  }
+
+  static getRoomLink(roomName) {
+    const url = getRoomUrl(roomName)
+    return `<a href="${url}" target="_blank">${roomName}</a>`
+  }
+
+  /**
+   *
+   * @param {object} entry
+   * @param {number} entry.level
+   * @param {string} entry.message
+   * @param {number} entry.time
+   * @param {number} entry.tick
+   * @param {string?} entry.roomName
+   * @param {boolean?} entry.replay
+   */
+  static defaultFormat(name, entry) {
+    const { level, message, time, tick = Game.time, roomName, replay = true } = entry
+
+    const levelName = LEVEL_NAMES[level]
+
+    const levelNameFormatted = levelName.padEnd(5, " ")
+
+    const nameFormatted = name.padEnd(10, " ")
+
+    let result = `[${time}] [${tick}] [${levelNameFormatted}] [${nameFormatted}] [${message}]`
+
+    if (roomName) {
+      const roomLink = Logger.getRoomLink(roomName)
+      result += ` [${roomLink}]`
+
+      if (replay) {
+        const replayLink = Logger.getReplayLink(roomName, tick)
+        result += ` [${replayLink}]`
+      }
+    }
+
+    const color = LEVEL_COLORS[levelName] || LEVEL_COLORS["DEFAULT"]
+
+    return getColoredText(result, color)
+  }
+
+  /**
+   *
+   * @param {string} name
+   * @param {object} options
+   * @param {number} options.level
+   * @param {number} options.limit
+   * @param {({level:number,message:string,tick?:number,roomName?:string,boolean:replay=true})=>string|undefined} options.format
+   * @returns
+   */
+  constructor(name, options = {}) {
+    this.name = name
+    this.level = options.level || DEFAULT_LOG_LEVEL
+    this.limit = options.limit || MAX_LOG_NUM
+    this.format = options.format || ((entry) => Logger.defaultFormat(name, entry))
+    return
+  }
+
+  /**
+   * @returns {{index:number}}
+   */
+  get memory() {
+    if (!Memory._logs) {
+      Memory._logs = {}
+    }
+
+    if (!Memory._logs[this.name]) {
+      Memory._logs[this.name] = {}
+    }
+
+    return Memory._logs[this.name]
+  }
+
+  /**
+   *
+   * @param {string|(()=>string)} message
+   * @param {object} options
+   * @param {string} [options.roomName]
+   * @param {number} [options.tick]
+   * @param {boolean} [options.notify]
+   */
+  fatal(message, options = {}) {
+    const entry = { level: LOG_LEVELS.FATAL, message, ...options }
+    this.log(entry)
+  }
+
+  /**
+   *
+   * @param {string|(()=>string)} message
+   * @param {object} options
+   * @param {string} [options.roomName]
+   * @param {number} [options.tick]
+   * @param {boolean} [options.notify]
+   */
+  error(message, options = {}) {
+    const entry = { level: LOG_LEVELS.ERROR, message, ...options }
+    this.log(entry)
+  }
+
+  /**
+   *
+   * @param {string|(()=>string)} message
+   * @param {object} options
+   * @param {string} [options.roomName]
+   * @param {number} [options.tick]
+   * @param {boolean} [options.notify]
+   */
+  warn(message, options = {}) {
+    const entry = { level: LOG_LEVELS.WARN, message, ...options }
+    this.log(entry)
+  }
+
+  /**
+   *
+   * @param {string|(()=>string)} message
+   * @param {object} options
+   * @param {string} [options.roomName]
+   * @param {number} [options.tick]
+   * @param {boolean} [options.notify]
+   */
+  info(message, options = {}) {
+    const entry = { level: LOG_LEVELS.INFO, message, ...options }
+    this.log(entry)
+  }
+
+  /**
+   *
+   * @param {string|(()=>string)} message
+   * @param {object} options
+   * @param {string} [options.roomName]
+   * @param {number} [options.tick]
+   * @param {boolean} [options.notify]
+   */
+  debug(message, options = {}) {
+    const entry = { level: LOG_LEVELS.DEBUG, message, ...options }
+    this.log(entry)
+  }
+
+  /**
+   *
+   * @param {string|(()=>string)} message
+   * @param {object} options
+   * @param {string} [options.roomName]
+   * @param {number} [options.tick]
+   * @param {boolean} [options.notify]
+   */
+  trace(message, options = {}) {
+    const entry = { level: LOG_LEVELS.TRACE, message, ...options }
+    this.log(entry)
+  }
+
+  print() {
+    let num = 0
+    const currentIndex = this.memory.index
+    let index = currentIndex
+    let result = ""
+
+    do {
+      const entry = this.memory[index]
+
+      index = (index + 1) % this.limit
+
+      if (!entry) {
+        continue
+      }
+
+      num++
+
+      const text = this.format(entry)
+
+      result += "#" + String(num).padStart(2, "0") + text + "<br>"
+    } while (index !== currentIndex)
+
+    return result
+  }
+
+  /**
+   *
+   * @param {{level:number, message:string|(()=>string),roomName?:string,tick?:number,notify?:boolean}} entry
+   * @param {boolean} print
+   * @returns
+   */
+  log(entry) {
+    if (Logger.getStreamTarget() && !Logger.getStreamTarget().includes(this.name)) {
+      return
+    }
+
+    if (!entry || entry.level === undefined || entry.level > this.getLevel()) {
+      return
+    }
+
+    if (typeof entry.message === "function") {
+      entry.message = entry.message()
+    }
+
+    entry.time = getFormattedTime()
+
+    entry.tick = entry.tick || Game.time
+
+    if (entry.notify === undefined) {
+      entry.notify = entry.level <= NOTIFY_LOG_LEVEL
+    }
+
+    if (this.memory.index === undefined) {
+      this.memory.index = 0
+    }
+
+    this.memory[this.memory.index] = entry
+
+    this.memory.index = (this.memory.index + 1) % this.limit
+
+    const formattedLog = this.format(entry)
+
+    console.log(formattedLog)
+
+    if (entry.notify) {
+      Game.notify(formattedLog, NOTIFY_INTERVAL)
+    }
+  }
+
   setLevel(level) {
-    Memory._loggerLogLevel = level
-  },
+    this.level = level
+  }
 
   getLevel() {
-    if (Memory._loggerLogLevel === undefined) {
-      Memory._loggerLogLevel = DEFAULT_LOG_LEVEL
-    }
-
-    return Memory._loggerLogLevel
-  },
-
-  logError(error, description, roomName) {
-    const message = error.stack
-
-    let terminalOnly = Object.values(logger.logs).some((log) => log.message === message)
-
-    loggerLog(LOG_LEVELS.ERROR, description, message, { roomName, notify: true, terminalOnly })
-  },
-}
-
-/**
- * Creates a logger for a specific category.
- * @param {string} category
- * @returns {CategoryLogger}
- */
-function createCategoryLogger(category) {
-  return {
-    fatal(message, options = {}) {
-      return loggerLog(LOG_LEVELS.FATAL, category, message, options)
-    },
-
-    error(message, options = {}) {
-      return loggerLog(LOG_LEVELS.ERROR, category, message, options)
-    },
-
-    warn(message, options = {}) {
-      return loggerLog(LOG_LEVELS.WARN, category, message, options)
-    },
-
-    info(message, options = {}) {
-      return loggerLog(LOG_LEVELS.INFO, category, message, options)
-    },
-
-    debug(message, options = {}) {
-      return loggerLog(LOG_LEVELS.DEBUG, category, message, options)
-    },
-
-    trace(message, options = {}) {
-      return loggerLog(LOG_LEVELS.TRACE, category, message, options)
-    },
+    return this.level
   }
-}
-
-CATEGORY.forEach((category) => {
-  logger[category] = createCategoryLogger(category)
-})
-
-/**
- * Logs a message if the log level is enabled, supporting lambda functions for deferred evaluation.
- * @param {number} level - The log level.
- * @param {string} category - The category of the log.
- * @param {string | (() => string)} message - The log message or a function returning the log message.
- * @param {object} options - Additional log options.
- * @param {string|undefined} options.roomName - roomName that event happend. If exists, hyperlink to room or history is attached to log
- * @param {boolean|false} options.notify - If true, notify the log via email. If undefined, notify if level is warn or more important
- * @param {boolean|false} options.terminalOnly - If true, don't push log into Memory.
- * @param {number|undefined} options.tick - Replay start tick. Default is the very tick that this function is called.
- */
-function loggerLog(level, category, message, options = {}) {
-  if (level > logger.getLevel()) {
-    return
-  }
-
-  if (typeof message === "function") {
-    message = message()
-  }
-
-  const roomName = options.roomName
-
-  const notify = options.notify !== undefined ? options.notify : level <= NOTIFY_LOG_LEVEL
-
-  const terminalOnly = options.terminalOnly || false
-
-  const time = getFormattedTime()
-  const tick = options.tick || Game.time
-
-  const logEntry = {
-    level,
-    category,
-    time,
-    tick,
-    message,
-    roomName,
-  }
-
-  console.log(formatLogEntry(logEntry))
-
-  if (terminalOnly) {
-    return
-  }
-
-  if (logger.logs.index === undefined) {
-    logger.logs.index = 0
-  }
-
-  logger.logs[logger.logs.index] = logEntry
-
-  logger.logs.index = (logger.logs.index + 1) % MAX_LOG_NUM
-
-  if (notify) {
-    Game.notify(formatLogEntry(logEntry, true), NOTIFY_INTERVAL)
-  }
-}
-
-/**
- *
- * @param {object} entry
- * @param {number} entry.level
- * @param {string} entry.category
- * @param {number} entry.time
- * @param {number} entry.tick
- * @param {string} entry.message
- * @param {string|undefined} entry.roomName
- */
-function formatLogEntry(entry, replay = false) {
-  const { level, category, time, tick, message, roomName } = entry
-
-  const levelName = LEVEL_NAMES[level]
-
-  const levelNameFormatted = levelName.padEnd(5, " ")
-
-  const categoryFormatted = category.padEnd(10, " ")
-
-  let result = `[${time}] [${tick}] [${levelNameFormatted}] [${categoryFormatted}]`
-
-  result += ` [${message}]`
-
-  if (roomName) {
-    if (replay) {
-      const replayLink = getReplayLink(roomName, tick)
-      result += `[${roomName}] [${replayLink}]`
-    } else {
-      const roomLink = getRoomLink(roomName)
-      result += ` [${roomLink}]`
-    }
-  }
-
-  const color = LEVEL_COLORS[levelName] || LEVEL_COLORS["DEFAULT"]
-
-  return getColoredText(result, color)
-}
-
-// getReplayLink and roomURLescape are from MrFaul
-
-function getReplayLink(roomName, tick = Game.time, msg = "replay") {
-  const front = PATH[Game.shard.name] || PATH["DEFAULT"]
-
-  return (
-    "<a href='" +
-    front +
-    "/#!/history/" +
-    Game.shard.name +
-    "/" +
-    roomURLescape(roomName) +
-    "?t=" +
-    tick +
-    "'>" +
-    msg +
-    "</a>"
-  )
 }
 
 function roomURLescape(roomName) {
@@ -281,11 +323,6 @@ function roomURLescape(roomName) {
     out += mapping[c] || c
   }
   return out
-}
-
-function getRoomLink(roomName) {
-  const url = getRoomUrl(roomName)
-  return `<a href="${url}" target="_blank">${roomName}</a>`
 }
 
 function getRoomUrl(roomName) {
@@ -339,46 +376,4 @@ function getColoredText(text, color) {
   return String(`<span style = "color: ${color}">${text}</span>`)
 }
 
-global.setLogLevel = function (level) {
-  if (!Object.values(LOG_LEVELS).includes(level)) {
-    throw new Error(`level should be an integer from 0 to ${Object.values(LOG_LEVELS).length - 1}`)
-  }
-
-  logger.setLevel(level)
-}
-
-global.log = function (category) {
-  let num = 0
-
-  const numLogs = MAX_LOG_NUM
-
-  const currentIndex = logger.logs.index
-
-  let index = currentIndex
-
-  let result = ""
-
-  do {
-    const logEntry = logger.logs[index]
-
-    index = (index + 1) % numLogs
-
-    if (!logEntry) {
-      continue
-    }
-
-    if (category && logEntry.category !== category) {
-      continue
-    }
-
-    num++
-
-    const text = formatLogEntry(logEntry, true)
-
-    result += "#" + String(num).padStart(2, "0") + text + "<br>"
-  } while (index !== currentIndex)
-
-  return result
-}
-
-module.exports = logger
+module.exports = Logger
