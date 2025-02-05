@@ -36,6 +36,14 @@ myLogger.warn("Resource shortage detected")
 myLogger.error("Creep failed to spawn")
 ```
 
+### Logging Messages With Lambda Function
+
+```javascript
+myLogger.setLevel(3) // level 3 is info
+myLogger.info(() => someHeavyFunction()) // someHeavyFunction() will be called
+myLogger.debug(() => someHeavyFunction()) // someHeavyFunction() will not be called
+```
+
 ### Logging with Room Links
 
 ```javascript
@@ -59,6 +67,7 @@ customLogger.info("Custom formatted log entry")
 
 ```javascript
 Logger.stream("MyModule") // Only logs from "MyModule" will be displayed
+Logger.stream(["MyModule", "CustomLogger"]) // Only logs from "MyModule" or "CustomLogger" will be displayed
 ```
 
 ### Stopping Log Streaming
