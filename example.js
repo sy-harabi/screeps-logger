@@ -1,34 +1,65 @@
-const Logger = require("./logger")
-const assert = require("assert")
+const Logger = require("./logger2")
 
-console.log("Running Logger Unit Tests...")
+// Custom format function example
+function customFormat(name, entry) {
+  return `(${entry.tick}) [${name}] ${entry.message}`
+}
 
-const testLogger = new Logger("TestModule", { level: Logger.LOG_LEVELS.DEBUG })
+// Create logger instances
+const myLogger = new Logger("myLogger", { level: 4, limit: 100 }) // Default format
+const customLogger = new Logger("customLogger", { level: 3, format: customFormat }) // Custom format
 
-// Test logging levels
-testLogger.info("Info message")
-testLogger.warn("Warning message")
-testLogger.error("Error message")
+// Log messages
+myLogger.warn("Enemy creep appeared!", { roomName: "W1N1" })
+customLogger.info("Custom formatted log entry")
 
-testLogger.debug("Debug message")
-testLogger.trace("Trace message")
+// Create another logger
+const myLogger2 = new Logger("myLogger2")
 
-testLogger.fatal("Fatal message")
+// Stream only myLogger's logs
+Logger.stream(myLogger.name)
+myLogger2.fatal("This will not be logged") // Will not appear
+myLogger.info("This will be logged") // Will appear
 
-// Check if log is stored in memory
-assert.ok(Memory._logs["TestModule"], "Log should be stored in Memory")
-assert.ok(Memory._logs["TestModule"].index !== undefined, "Log index should exist")
+// Stop streaming restriction
+Logger.stream()
+myLogger2.warn("Now this will appear")
 
-// Ensure log streaming is working
-Logger.stream("TestModule")
-assert.ok(Logger.getStreamTarget().includes("TestModule"), "Stream should target TestModule")
+// Print logs
+myLogger.print()
+customLogger.print()
 
-// Test room link generation
-const roomLink = testLogger.getRoomLink("W1N1")
-assert.ok(roomLink.includes("W1N1"), "Room link should contain room name")
+// Clear logs
+myLogger.clear()
 
-// Test replay link generation
-const replayLink = testLogger.getReplayLink("W1N1")
-assert.ok(replayLink.includes("history"), "Replay link should contain history path")
+// Other logs are alive
+myLogger2.print()
 
-console.log("All tests passed!")
+// Clear all the logs
+Logger.clearAll()
+
+// This will not appear
+customLogger.print()
+
+// Global methods for logging utilities
+global.streamLog = function (name) {
+  Logger.stream(name)
+}
+
+global.printLog = function (name) {
+  if (name === "myLogger") {
+    myLogger.print()
+  } else if (name === "customLogger") {
+    customLogger.print()
+  }
+}
+
+global.clearLog = function (name) {
+  if (!name) {
+    Logger.clearAll()
+  } else if (name === "myLogger") {
+    myLogger.clear()
+  } else if (name === "customLogger") {
+    customLogger.clear()
+  }
+}
