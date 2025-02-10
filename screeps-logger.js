@@ -375,7 +375,7 @@ function roomURLescape(roomName) {
 function getRoomUrl(roomName) {
   const front = PATH[Game.shard.name] || PATH["DEFAULT"]
 
-  return front + `/#!/room/${Game.shard.name}/${roomName}`
+  return front + `/#!/room/${Game.shard.name}/${roomURLescape(roomName)}`
 }
 
 let formattedTimeTick

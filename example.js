@@ -19,7 +19,7 @@ function logError(error, options = {}) {
 
 function safeExecute(fn) {
   try {
-    fn()
+    return fn()
   } catch (err) {
     logError(err)
   }
