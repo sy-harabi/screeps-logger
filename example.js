@@ -57,6 +57,14 @@ global.printLog = function (name) {
   }
 }
 
+global.setLogLevel = function (name, level) {
+  const logger = loggers[name]
+
+  if (logger) {
+    logger.setLogLevel(level)
+  }
+}
+
 global.clearLog = function (name) {
   if (name === undefined) {
     Logger.clearAll()

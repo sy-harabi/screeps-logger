@@ -76,13 +76,16 @@ class Logger {
   /**
    * Clears all logs stored in memory.
    */
-  static clear() {
+  static clearAll() {
     if (!Memory._logs) {
       return
     }
 
-    delete Memory._logs.logs
-    delete Memory._logs.index
+    for (const key in Memory._logs) {
+      if (key !== "._stream") {
+        delete Memory._logs[key]
+      }
+    }
   }
 
   /**
@@ -277,7 +280,7 @@ class Logger {
     let result = ""
 
     do {
-      const entry = this.memory[index]
+      const entry = this.logs[index]
 
       index = (index + 1) % this.limit
 
