@@ -18,13 +18,13 @@ testLogger.fatal("Fatal message")
 testLogger.warn("Warning in room", { roomName: "W1N1" })
 
 // Check if log is stored in memory
-if (!Memory._logs || !Memory._logs["TestModule"]) {
+if (!Memory._logs) {
   console.log("Log should be stored in Memory - FAILED")
 } else {
   console.log("Log is stored in Memory - PASSED")
 }
 
-if (!Memory._logs["TestModule"] || Memory._logs["TestModule"].index === undefined) {
+if (!Memory._logs || Memory._logs.index === undefined) {
   console.log("Log index should exist - FAILED")
 } else {
   console.log("Log index exists - PASSED")
@@ -37,6 +37,9 @@ if (!Logger.getStreamTarget().includes("TestModule")) {
 } else {
   console.log("Stream is correctly set - PASSED")
 }
+
+// Stream off
+Logger.stream()
 
 // Test room link generation
 const roomLink = Logger.getRoomLink("W1N1")

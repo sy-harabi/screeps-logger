@@ -1,65 +1,76 @@
-const Logger = require("./logger2")
+const Logger = require("./screeps-logger")
 
-// Custom format function example
-function customFormat(name, entry) {
-  return `(${entry.tick}) [${name}] ${entry.message}`
+const errorLogger = new Logger("error")
+
+function logError(error, options = {}) {
+  if (!(error instanceof Error)) {
+    errorLogger.error(`Invalid error object: ${JSON.stringify(error)}`, options)
+    return
+  }
+
+  const message = `${error.message}\nStack: ${error.stack}`
+
+  if (Object.values(errorLogger.logs).some((log) => log.message === message)) {
+    return
+  }
+
+  errorLogger.error(message, options)
 }
 
-// Create logger instances
-const myLogger = new Logger("myLogger", { level: 4, limit: 100 }) // Default format
-const customLogger = new Logger("customLogger", { level: 3, format: customFormat }) // Custom format
+function safeExecute(fn) {
+  try {
+    fn()
+  } catch (err) {
+    logError(err)
+  }
+}
 
-// Log messages
-myLogger.warn("Enemy creep appeared!", { roomName: "W1N1" })
-customLogger.info("Custom formatted log entry")
+const NAMES = {
+  GENERAL: "general",
+  EVENT: "event",
+  ERROR: "error",
+  EXCHANGE: "exchange",
+  MARKET: "market",
+}
 
-// Create another logger
-const myLogger2 = new Logger("myLogger2")
+const general = new Logger("general")
 
-// Stream only myLogger's logs
-Logger.stream(myLogger.name)
-myLogger2.fatal("This will not be logged") // Will not appear
-myLogger.info("This will be logged") // Will appear
+const event = new Logger("event")
 
-// Stop streaming restriction
-Logger.stream()
-myLogger2.warn("Now this will appear")
+const exchange = new Logger("exchange")
 
-// Print logs
-myLogger.print()
-customLogger.print()
+const market = new Logger("market")
 
-// Clear logs
-myLogger.clear()
-
-// Other logs are alive
-myLogger2.print()
-
-// Clear all the logs
-Logger.clearAll()
-
-// This will not appear
-customLogger.print()
-
-// Global methods for logging utilities
-global.streamLog = function (name) {
-  Logger.stream(name)
+const loggers = {
+  NAMES,
+  general,
+  event,
+  exchange,
+  market,
 }
 
 global.printLog = function (name) {
-  if (name === "myLogger") {
-    myLogger.print()
-  } else if (name === "customLogger") {
-    customLogger.print()
+  const logger = loggers[name]
+
+  if (logger) {
+    logger.print()
   }
 }
 
 global.clearLog = function (name) {
-  if (!name) {
+  if (name === undefined) {
     Logger.clearAll()
-  } else if (name === "myLogger") {
-    myLogger.clear()
-  } else if (name === "customLogger") {
-    customLogger.clear()
+  }
+
+  const logger = loggers[name]
+
+  if (logger) {
+    logger.clear()
   }
 }
+
+global.streamLog = function (names) {
+  Logger.setStream(names)
+}
+
+module.exports = { safeExecute, loggers }

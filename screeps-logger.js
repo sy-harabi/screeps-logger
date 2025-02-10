@@ -5,7 +5,7 @@
 
 const TIME_OFFSET = 540 // UTC time offset. Adjust this to your region
 
-const MAX_LOG_NUM = 50
+const MAX_LOG_NUM = 100
 
 const NOTIFY_INTERVAL = 60
 
@@ -45,7 +45,7 @@ class Logger {
    * Enables or disables log streaming to specific modules.
    * @param {string|string[]} [names] - Names of modules to stream logs from.
    */
-  static stream(names) {
+  static setStream(names) {
     if (!Memory._logs) {
       Memory._logs = {}
     }
@@ -76,8 +76,13 @@ class Logger {
   /**
    * Clears all logs stored in memory.
    */
-  static clearAll() {
-    delete Memory._logs
+  static clear() {
+    if (!Memory._logs) {
+      return
+    }
+
+    delete Memory._logs.logs
+    delete Memory._logs.index
   }
 
   /**
@@ -118,14 +123,16 @@ class Logger {
    * @param {object} entry - Log entry object.
    * @param {number} entry.level - Log severity level.
    * @param {string} entry.message - Log message.
-   * @param {number} entry.time - Timestamp of the log.
+   * @param {number} entry.timestamp - Timestamp of the log.
    * @param {number} [entry.tick] - Game tick.
    * @param {string} [entry.roomName] - Room name if applicable.
    * @param {boolean} [entry.replay=true] - Whether to generate a replay link.
    * @returns {string} - Formatted log entry with colors.
    */
   static defaultFormat(name, entry) {
-    const { level, message, time, tick = Game.time, roomName, replay = true } = entry
+    const { level, message, timestamp, tick = Game.time, roomName, replay = true } = entry
+
+    const formattedTime = getFormattedTime(timestamp)
 
     const levelName = LEVEL_NAMES[level]
 
@@ -133,7 +140,7 @@ class Logger {
 
     const nameFormatted = name.padEnd(10, " ")
 
-    let result = `[${time}] [${tick}] [${levelNameFormatted}] [${nameFormatted}] [${message}]`
+    let result = `[${formattedTime}] [${tick}] [${levelNameFormatted}] [${nameFormatted}] [${message}]`
 
     if (roomName) {
       const roomLink = Logger.getRoomLink(roomName)
@@ -156,7 +163,7 @@ class Logger {
    * @param {object} [options] - Logger options.
    * @param {number} [options.level] - Minimum log level.
    * @param {number} [options.limit] - Maximum number of logs stored.
-   * @param {({level:number,message:string})=>string} [options.format] - Custom log formatting function.
+   * @param {(object:{level:number,message:string,timestamp:number,roomName?:string,tick?:number,notify?:boolean})=>string} [options.format] - Custom log formatting function.
    */
   constructor(name, options = {}) {
     this.name = name
@@ -170,15 +177,20 @@ class Logger {
    * @returns {{index:number}}
    */
   get memory() {
-    if (!Memory._logs) {
-      Memory._logs = {}
-    }
+    Memory._logs = Memory._logs || {}
 
-    if (!Memory._logs[this.name]) {
-      Memory._logs[this.name] = {}
-    }
+    Memory._logs[this.name] = Memory._logs[this.name] || {}
 
     return Memory._logs[this.name]
+  }
+
+  /**
+   * @returns {[{level:number,message:string}]}
+   */
+  get logs() {
+    this.memory.logs = this.memory.logs || {}
+
+    return this.memory.logs || {}
   }
 
   /**
@@ -313,7 +325,7 @@ class Logger {
       entry.message = entry.message()
     }
 
-    entry.time = getFormattedTime()
+    entry.timestamp = Date.now()
 
     entry.tick = entry.tick || Game.time
 
@@ -325,7 +337,7 @@ class Logger {
       this.memory.index = 0
     }
 
-    this.memory[this.memory.index] = entry
+    this.logs[this.memory.index] = entry
 
     this.memory.index = (this.memory.index + 1) % this.limit
 
@@ -371,16 +383,12 @@ let formattedTime
  *
  * @returns {string} Time formatted as YYYY.MM.DD. HH:MM
  */
-function getFormattedTime() {
-  if (formattedTimeTick && formattedTimeTick === Game.time && formattedTime) {
-    return formattedTime
-  }
-
+function getFormattedTime(timestamp) {
   function pad(number) {
     return String(number).padStart(2, "0")
   }
 
-  const now = new Date()
+  const now = new Date(timestamp)
   const utcNow = now.getTime() + now.getTimezoneOffset() * 60 * 1000
   const koreaNow = utcNow + TIME_OFFSET * 60 * 1000
   const koreaDate = new Date(koreaNow)
