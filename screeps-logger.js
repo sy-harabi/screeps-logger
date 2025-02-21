@@ -358,7 +358,7 @@ class Logger {
     }
 
     if (entry.memory === undefined) {
-      entry.notify = this.memoryCallback(entry)
+      entry.memory = this.memoryCallback(entry)
     }
 
     if (entry.memory) {
