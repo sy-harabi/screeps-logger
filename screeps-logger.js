@@ -13,6 +13,7 @@ const PATH = {
   jaysee: "http://jayseegames.localhost:8080/(http://jayseegames.com:21025)",
   shardSeason: "https://screeps.com/season",
   DEFAULT: "https://screeps.com/a",
+  thunderdrone: "http://localhost:8080/(https://server.pandascreeps.com/)",
 }
 
 const LEVEL_NAMES = ["FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
@@ -39,6 +40,17 @@ const LEVEL_COLORS = {
   TRACE: "#555555", // Gray
   DEFAULT: "#dddddd", // Light Gray
 }
+
+/**
+ * @typedef Entry - log entry
+ * @property {number} level - Log severity level.
+ * @property {string|function} message - Log message or function returning a message.
+ * @property {number} timestamp - Timestamp.
+ * @property {number} tick - Game tick.
+ * @property {string} [roomName] - Room name for the log.
+ * @property {boolean} [memory] - Whether to store log in memory.
+ * @property {boolean} [notify] - Whether to send a notification.
+ */
 
 class Logger {
   /**
@@ -123,17 +135,11 @@ class Logger {
   /**
    * Formats a log entry.
    * @param {string} name - Logger name.
-   * @param {object} entry - Log entry object.
-   * @param {number} entry.level - Log severity level.
-   * @param {string} entry.message - Log message.
-   * @param {number} entry.timestamp - Timestamp of the log.
-   * @param {number} [entry.tick] - Game tick.
-   * @param {string} [entry.roomName] - Room name if applicable.
-   * @param {boolean} [entry.replay=true] - Whether to generate a replay link.
+   * @param {Entry} entry - Log entry object.
    * @returns {string} - Formatted log entry with colors.
    */
   static defaultFormat(name, entry) {
-    const { level, message, timestamp, tick = Game.time, roomName, replay = true } = entry
+    const { level, message, timestamp, tick = Game.time, roomName } = entry
 
     const formattedTime = getFormattedTime(timestamp)
 
@@ -149,15 +155,21 @@ class Logger {
       const roomLink = Logger.getRoomLink(roomName)
       result += ` [${roomLink}]`
 
-      if (replay) {
-        const replayLink = Logger.getReplayLink(roomName, tick)
-        result += ` [${replayLink}]`
-      }
+      const replayLink = Logger.getReplayLink(roomName, tick)
+      result += ` [${replayLink}]`
     }
 
     const color = LEVEL_COLORS[levelName] || LEVEL_COLORS["DEFAULT"]
 
     return getColoredText(result, color)
+  }
+
+  static defaultMemoryCallback(entry) {
+    return entry.level <= LOG_LEVELS.INFO
+  }
+
+  static defaultNotifyCallback(entry) {
+    return entry.level <= LOG_LEVELS.WARN
   }
 
   /**
@@ -166,13 +178,17 @@ class Logger {
    * @param {object} [options] - Logger options.
    * @param {number} [options.level] - Minimum log level.
    * @param {number} [options.limit] - Maximum number of logs stored.
-   * @param {(object:{level:number,message:string,timestamp:number,roomName?:string,tick?:number,notify?:boolean})=>string} [options.format] - Custom log formatting function.
+   * @param {(Entry)=>string} [options.format] - Custom log formatting function.
+   * @param {(Entry)=>boolean} [options.notifyCallback]
+   * @param {(Entry)=>boolean} [options.memoryCallback]
    */
   constructor(name, options = {}) {
     this.name = name
     this.level = options.level || DEFAULT_LOG_LEVEL
     this.limit = options.limit || MAX_LOG_NUM
     this.format = options.format ? (entry) => options.format(name, entry) : (entry) => Logger.defaultFormat(name, entry)
+    this.notifyCallback = options.notifyCallback || Logger.defaultNotifyCallback
+    this.memoryCallback = options.memoryCallback || Logger.defaultMemoryCallback
     return
   }
 
@@ -203,6 +219,7 @@ class Logger {
    * @param {string} [options.roomName] - Room name for the log.
    * @param {number} [options.tick] - Game tick at the time of logging.
    * @param {boolean} [options.notify] - Whether to send a notification.
+   * @param {boolean} [options.memory] - Whether to store log in memory.
    */
   fatal(message, options = {}) {
     this.log({ level: LOG_LEVELS.FATAL, message, ...options })
@@ -215,6 +232,7 @@ class Logger {
    * @param {string} [options.roomName] - Room name for the log.
    * @param {number} [options.tick] - Game tick at the time of logging.
    * @param {boolean} [options.notify] - Whether to send a notification.
+   * @param {boolean} [options.memory] - Whether to store log in memory.
    */
   error(message, options = {}) {
     this.log({ level: LOG_LEVELS.ERROR, message, ...options })
@@ -227,6 +245,7 @@ class Logger {
    * @param {string} [options.roomName] - Room name for the log.
    * @param {number} [options.tick] - Game tick at the time of logging.
    * @param {boolean} [options.notify] - Whether to send a notification.
+   * @param {boolean} [options.memory] - Whether to store log in memory.
    */
   warn(message, options = {}) {
     this.log({ level: LOG_LEVELS.WARN, message, ...options })
@@ -239,6 +258,7 @@ class Logger {
    * @param {string} [options.roomName] - Room name for the log.
    * @param {number} [options.tick] - Game tick at the time of logging.
    * @param {boolean} [options.notify] - Whether to send a notification.
+   * @param {boolean} [options.memory] - Whether to store log in memory.
    */
   info(message, options = {}) {
     this.log({ level: LOG_LEVELS.INFO, message, ...options })
@@ -251,6 +271,7 @@ class Logger {
    * @param {string} [options.roomName] - Room name for the log.
    * @param {number} [options.tick] - Game tick at the time of logging.
    * @param {boolean} [options.notify] - Whether to send a notification.
+   * @param {boolean} [options.memory] - Whether to store log in memory.
    */
   debug(message, options = {}) {
     this.log({ level: LOG_LEVELS.DEBUG, message, ...options })
@@ -263,6 +284,7 @@ class Logger {
    * @param {string} [options.roomName] - Room name for the log.
    * @param {number} [options.tick] - Game tick at the time of logging.
    * @param {boolean} [options.notify] - Whether to send a notification.
+   * @param {boolean} [options.memory] - Whether to store log in memory.
    */
   trace(message, options = {}) {
     this.log({ level: LOG_LEVELS.TRACE, message, ...options })
@@ -308,12 +330,7 @@ class Logger {
 
   /**
    * Logs a message at a specified level.
-   * @param {object} entry - Log entry object.
-   * @param {number} entry.level - Log severity level.
-   * @param {string|function} entry.message - Log message or function returning a message.
-   * @param {string} [entry.roomName] - Room name for the log.
-   * @param {number} [entry.tick] - Game tick.
-   * @param {boolean} [entry.notify] - Whether to send a notification.
+   * @param {Entry} entry - Log entry object.
    */
   log(entry) {
     if (Logger.getStreamTarget() && !Logger.getStreamTarget().includes(this.name)) {
@@ -332,21 +349,27 @@ class Logger {
 
     entry.tick = entry.tick || Game.time
 
-    if (entry.notify === undefined) {
-      entry.notify = entry.level <= NOTIFY_LOG_LEVEL
-    }
-
-    if (this.memory.index === undefined) {
-      this.memory.index = 0
-    }
-
-    this.logs[this.memory.index] = entry
-
-    this.memory.index = (this.memory.index + 1) % this.limit
-
     const formattedLog = this.format(entry)
 
     console.log(formattedLog)
+
+    if (entry.notify === undefined) {
+      entry.notify = this.notifyCallback(entry)
+    }
+
+    if (entry.memory === undefined) {
+      entry.notify = this.memoryCallback(entry)
+    }
+
+    if (entry.memory) {
+      if (this.memory.index === undefined) {
+        this.memory.index = 0
+      }
+
+      this.logs[this.memory.index] = entry
+
+      this.memory.index = (this.memory.index + 1) % this.limit
+    }
 
     if (entry.notify) {
       Game.notify(formattedLog, NOTIFY_INTERVAL)
@@ -377,10 +400,6 @@ function getRoomUrl(roomName) {
 
   return front + `/#!/room/${Game.shard.name}/${roomURLescape(roomName)}`
 }
-
-let formattedTimeTick
-
-let formattedTime
 
 /**
  *
