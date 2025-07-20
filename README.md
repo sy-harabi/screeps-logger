@@ -17,7 +17,7 @@ A structured and customizable logging system for Screeps. This module provides m
 To use this logger in your Screeps bot, add the `screeps-logger.js` file to your project and import it:
 
 ```javascript
-const Logger = require("logger")
+const Logger = require("screeps-logger")
 ```
 
 ## Usage
