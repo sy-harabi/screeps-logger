@@ -48,7 +48,7 @@ const PATH = {
  * @property {number} DEBUG=3 Debug level
  * @property {number} TRACE=4 Trace level (most verbose)
  */
-export const LOG_LEVEL = {
+const LOG_LEVEL = {
   ERROR: 0,
   WARN: 1,
   INFO: 2,
@@ -77,7 +77,7 @@ export const LOG_LEVEL = {
  * @property {number} ERROR=15 Error reporting
  * @property {number} SYSTEM=16 System operations
  */
-export const LOG_CAT = {
+const LOG_CAT = {
   // --- Core ---
   SPAWN: 0,
   MOVE: 1,
@@ -104,11 +104,13 @@ export const LOG_CAT = {
   SYSTEM: 16,
 }
 
+const CAT_NAME = buildTextDict(LOG_CAT)
+
 /**
  * Message codes for SPAWN category
  * @enum {number}
  */
-export const MSG_SPAWN = {
+const MSG_SPAWN = {
   SUCCESS: 100,
   FAILED: 101,
   QUEUED: 102,
@@ -120,7 +122,7 @@ export const MSG_SPAWN = {
  * Message codes for MOVE category
  * @enum {number}
  */
-export const MSG_MOVE = {
+const MSG_MOVE = {
   STARTED: 200,
   BLOCKED: 201,
   STUCK: 202,
@@ -132,7 +134,7 @@ export const MSG_MOVE = {
  * Message codes for PATH category
  * @enum {number}
  */
-export const MSG_PATH = {
+const MSG_PATH = {
   FOUND: 300,
   NOT_FOUND: 301,
   BLOCKED: 302,
@@ -144,7 +146,7 @@ export const MSG_PATH = {
  * Message codes for ECON category
  * @enum {number}
  */
-export const MSG_ECON = {
+const MSG_ECON = {
   RESOURCES_LOW: 400,
   STORAGE_FULL: 401,
   STORAGE_EMPTY: 402,
@@ -156,7 +158,7 @@ export const MSG_ECON = {
  * Message codes for CLAIM category
  * @enum {number}
  */
-export const MSG_CLAIM = {
+const MSG_CLAIM = {
   STARTED: 500,
   SUCCESS: 501,
   FAILED: 502,
@@ -168,7 +170,7 @@ export const MSG_CLAIM = {
  * Message codes for LAB category
  * @enum {number}
  */
-export const MSG_LAB = {
+const MSG_LAB = {
   REACTION_START: 600,
   REACTION_COMPLETE: 601,
   REACTION_FAILED: 602,
@@ -180,7 +182,7 @@ export const MSG_LAB = {
  * Message codes for DEFENSE category
  * @enum {number}
  */
-export const MSG_DEFENSE = {
+const MSG_DEFENSE = {
   ENEMY_DETECTED: 700,
   DEFEND_START: 701,
   DEFEND_LOST: 702,
@@ -192,7 +194,7 @@ export const MSG_DEFENSE = {
  * Message codes for OFFENSE category
  * @enum {number}
  */
-export const MSG_OFFENSE = {
+const MSG_OFFENSE = {
   ATTACK_STARTED: 800,
   ATTACK_SUCCESS: 801,
   ATTACK_FAILED: 802,
@@ -204,7 +206,7 @@ export const MSG_OFFENSE = {
  * Message codes for SIEGE category
  * @enum {number}
  */
-export const MSG_SIEGE = {
+const MSG_SIEGE = {
   STARTED: 900,
   PROGRESS: 901,
   COMPLETED: 902,
@@ -216,7 +218,7 @@ export const MSG_SIEGE = {
  * Message codes for QUAD category
  * @enum {number}
  */
-export const MSG_QUAD = {
+const MSG_QUAD = {
   FORMED: 1000,
   ATTACK: 1001,
   DISBANDED: 1002,
@@ -228,7 +230,7 @@ export const MSG_QUAD = {
  * Message codes for INTEL category
  * @enum {number}
  */
-export const MSG_INTEL = {
+const MSG_INTEL = {
   UPDATED: 1100,
   THREAT_DETECTED: 1101,
   OPPORTUNITY: 1102,
@@ -240,7 +242,7 @@ export const MSG_INTEL = {
  * Message codes for OBSERVER category
  * @enum {number}
  */
-export const MSG_OBSERVER = {
+const MSG_OBSERVER = {
   COMPLETE: 1200,
   FAILED: 1201,
   SCHEDULED: 1202,
@@ -252,7 +254,7 @@ export const MSG_OBSERVER = {
  * Message codes for EXPAND category
  * @enum {number}
  */
-export const MSG_EXPAND = {
+const MSG_EXPAND = {
   STARTED: 1300,
   AVAILABLE: 1301,
   FAILED: 1302,
@@ -264,7 +266,7 @@ export const MSG_EXPAND = {
  * Message codes for CPU category
  * @enum {number}
  */
-export const MSG_CPU = {
+const MSG_CPU = {
   CRITICAL: 1400,
   HIGH: 1401,
   NORMAL: 1402,
@@ -276,7 +278,7 @@ export const MSG_CPU = {
  * Message codes for MEM category
  * @enum {number}
  */
-export const MSG_MEM = {
+const MSG_MEM = {
   CRITICAL: 1500,
   HIGH: 1501,
   NORMAL: 1502,
@@ -288,7 +290,7 @@ export const MSG_MEM = {
  * Message codes for ERROR category
  * @enum {number}
  */
-export const MSG_ERROR = {
+const MSG_ERROR = {
   CRITICAL: 1600,
   UNEXPECTED: 1601,
   VALIDATION: 1602,
@@ -300,7 +302,7 @@ export const MSG_ERROR = {
  * Message codes for SYSTEM category
  * @enum {number}
  */
-export const MSG_SYSTEM = {
+const MSG_SYSTEM = {
   RESET: 1700,
   STARTUP: 1701,
   SHUTDOWN: 1702,
@@ -343,7 +345,7 @@ function buildTextDict(enumObj) {
  * Maps message codes to human-readable descriptions
  * @type {Object<number, string>}
  */
-export const MSG_TEXT = {
+const MSG_TEXT = {
   ...buildTextDict(MSG_SPAWN),
   ...buildTextDict(MSG_MOVE),
   ...buildTextDict(MSG_PATH),
@@ -372,11 +374,11 @@ export const MSG_TEXT = {
  * @type {Object<string, string>}
  */
 const LEVEL_COLORS = {
-  ERROR: "#B22222", // Firebrick
-  WARN: "#B8860B", // Dark Goldenrod
-  INFO: "#0055AA", // Deep Blue
-  DEBUG: "#228B22", // Forest Green
-  TRACE: "#555555", // Gray
+  0: "#FF6B6B", // Light Red (ERROR / CRITICAL)
+  1: "#FFD166", // Bright Amber (WARN)
+  2: "#4DA3FF", // Bright Blue (INFO)
+  3: "#6BCF8E", // Light Green (DEBUG)
+  4: "#9E9E9E", // Light Gray (TRACE)
 }
 
 /**
@@ -489,7 +491,7 @@ function getRoomUrl(roomName) {
  * @param {string} roomName - The room name to link
  * @returns {string} HTML anchor tag with room link
  */
-export function getRoomLink(roomName) {
+function getRoomLink(roomName) {
   const url = getRoomUrl(roomName)
   return `<a href="${url}" target="_blank">${roomName}</a>`
 }
@@ -501,7 +503,7 @@ export function getRoomLink(roomName) {
  * @param {string} [msg="replay"] - The link text
  * @returns {string} HTML anchor tag with replay link
  */
-export function getReplayLink(roomName, tick = Game.time, msg = "replay") {
+function getReplayLink(roomName, tick = Game.time) {
   const front = PATH[Game.shard.name] || PATH["world"]
 
   return (
@@ -514,7 +516,7 @@ export function getReplayLink(roomName, tick = Game.time, msg = "replay") {
     "?t=" +
     tick +
     "'>" +
-    msg +
+    tick +
     "</a>"
   )
 }
@@ -537,7 +539,7 @@ export function getReplayLink(roomName, tick = Game.time, msg = "replay") {
  * @param {Object} entry.f - Flags object (optional)
  * @returns {string} Formatted log line
  */
-export function render(entry) {
+function render(entry) {
   const { t, ts, l, c, r, m, d, f } = entry
 
   const time = getFormattedTime(ts)
@@ -554,21 +556,24 @@ export function render(entry) {
     tick = t
   }
 
-  const msg = MSG_TEXT[m] ?? `MSG_${m}`
-  let line = `${time} ${tick} ${LEVEL_NAME[l]} ${c} ${roomName} ${msg}`
+  const msg = MSG_TEXT[m] || `MSG_${m}`
+  let line = `[${time} ${tick}] [${LEVEL_NAME[l]}] [${CAT_NAME[c]}] [${roomName}] ${msg}`
 
   if (d) {
-    for (const [k, v] of Object.entries(d)) {
-      line += ` ${k}=${v}`
-    }
+    line += " ("
+    line += Object.entries(d)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", ")
+    line += ")"
   }
 
   // visual hierarchy (console only)
   if (f && f.context) {
-    console.log(`<span style="color:#888;font-style:italic">${line}</span>`)
+    console.logUnsafe(`<span style="color:#888;font-style:italic">${line}</span>`)
   } else {
-    const color = LEVEL_COLORS[LEVEL_NAME[l]]
-    console.log(`<span style="color:${color}">${line}</span>`)
+    const color = LEVEL_COLORS[l]
+    console.log(color)
+    console.logUnsafe(`<span style="color:${color}">${line}</span>`)
   }
 
   return line
@@ -608,7 +613,7 @@ function enabled(level, cat) {
  * @param {number} msg - The message code
  * @returns {boolean} True if notification should be sent
  */
-export function shouldNotify(level, msg) {
+function shouldNotify(level, msg) {
   return level <= LOG_LEVEL.WARN
 }
 
@@ -653,7 +658,7 @@ function emit(level, cat, roomName, msg, data, flags) {
  * Provides methods for logging at different levels and managing configuration
  * @namespace Logger
  */
-export const Logger = {
+const Logger = {
   /**
    * Sets the minimum log level for output
    * @param {string} name - Log level name ('ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE')
@@ -767,4 +772,30 @@ export const Logger = {
     flags.context = true
     emit(LOG_LEVEL.WARN, cat, room, msg, data, flags)
   },
+}
+
+module.exports = {
+  LOG_LEVEL,
+  LOG_CAT,
+  MSG_SPAWN,
+  MSG_MOVE,
+  MSG_PATH,
+  MSG_ECON,
+  MSG_CLAIM,
+  MSG_LAB,
+  MSG_DEFENSE,
+  MSG_OFFENSE,
+  MSG_SIEGE,
+  MSG_QUAD,
+  MSG_INTEL,
+  MSG_OBSERVER,
+  MSG_EXPAND,
+  MSG_CPU,
+  MSG_MEM,
+  MSG_ERROR,
+  MSG_SYSTEM,
+  MSG_TEXT,
+  getRoomLink,
+  getReplayLink,
+  Logger,
 }
