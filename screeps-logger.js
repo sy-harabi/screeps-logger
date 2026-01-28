@@ -32,8 +32,14 @@ const NOTIFY_INTERVAL = 60
  */
 const PATH = {
   shardSeason: "https://screeps.com/season",
-  world: "https://screeps.com/a",
+  shard0: "https://screeps.com/a",
+  shard1: "https://screeps.com/a",
+  shard2: "https://screeps.com/a",
+  shard3: "https://screeps.com/a",
+  private: "http://private.localhost:8080/(http://localhost:21025)",
 }
+
+const isMMO = ["shardSeason", "shard0", "shard1", "shard2", "shard3"].includes(Game.shard.name)
 
 // ============================================================================
 // ENUMS / TYPES
@@ -78,254 +84,40 @@ const LOG_LEVEL = {
  * @property {number} SYSTEM=16 System operations
  */
 const LOG_CAT = {
-  // --- Core ---
+  // --- Core (0–9) ---
   SPAWN: 0,
   MOVE: 1,
   PATH: 2,
   ECON: 3,
   CLAIM: 4,
   LAB: 5,
+  ROOM: 6,
+  HAUL: 7,
 
-  // --- Combat ---
-  DEFENSE: 6,
-  OFFENSE: 7,
-  SIEGE: 8,
-  QUAD: 9,
+  // --- Combat (10–19) ---
+  DEFENSE: 10,
+  OFFENSE: 11,
+  SIEGE: 12,
+  QUAD: 13,
 
-  // --- Planning / Intel ---
-  INTEL: 10,
-  OBSERVER: 11,
-  EXPAND: 12,
+  // --- Planning / Intel (20–29) ---
+  INTEL: 20,
+  OBSERVER: 21,
+  EXPAND: 22,
+  MISSION: 23,
 
-  // --- Infra ---
-  CPU: 13,
-  MEM: 14,
-  ERROR: 15,
-  SYSTEM: 16,
+  // --- Infra (30–39) ---
+  CPU: 30,
+  MEM: 31,
+  ERROR: 32,
+  SYSTEM: 33,
 }
 
 const CAT_NAME = buildTextDict(LOG_CAT)
 
-/**
- * Message codes for SPAWN category
- * @enum {number}
- */
-const MSG_SPAWN = {
-  SUCCESS: 100,
-  FAILED: 101,
-  QUEUED: 102,
-  CANCELLED: 103,
-  ENERGY_LOW: 104,
-}
-
-/**
- * Message codes for MOVE category
- * @enum {number}
- */
-const MSG_MOVE = {
-  STARTED: 200,
-  BLOCKED: 201,
-  STUCK: 202,
-  FAILED: 203,
-  COMPLETED: 204,
-}
-
-/**
- * Message codes for PATH category
- * @enum {number}
- */
-const MSG_PATH = {
-  FOUND: 300,
-  NOT_FOUND: 301,
-  BLOCKED: 302,
-  RECALCULATING: 303,
-  FAILED: 304,
-}
-
-/**
- * Message codes for ECON category
- * @enum {number}
- */
-const MSG_ECON = {
-  RESOURCES_LOW: 400,
-  STORAGE_FULL: 401,
-  STORAGE_EMPTY: 402,
-  ENERGY_SHORTAGE: 403,
-  ENERGY_SURPLUS: 404,
-}
-
-/**
- * Message codes for CLAIM category
- * @enum {number}
- */
-const MSG_CLAIM = {
-  STARTED: 500,
-  SUCCESS: 501,
-  FAILED: 502,
-  ATTACKED: 503,
-  RESERVED: 504,
-}
-
-/**
- * Message codes for LAB category
- * @enum {number}
- */
-const MSG_LAB = {
-  REACTION_START: 600,
-  REACTION_COMPLETE: 601,
-  REACTION_FAILED: 602,
-  DELIVER_FAILED: 603,
-  EMPTY: 604,
-}
-
-/**
- * Message codes for DEFENSE category
- * @enum {number}
- */
-const MSG_DEFENSE = {
-  ENEMY_DETECTED: 700,
-  DEFEND_START: 701,
-  DEFEND_LOST: 702,
-  DEFEND_WON: 703,
-  WALL_BREACHED: 704,
-}
-
-/**
- * Message codes for OFFENSE category
- * @enum {number}
- */
-const MSG_OFFENSE = {
-  ATTACK_STARTED: 800,
-  ATTACK_SUCCESS: 801,
-  ATTACK_FAILED: 802,
-  TARGET_DESTROYED: 803,
-  RETREAT: 804,
-}
-
-/**
- * Message codes for SIEGE category
- * @enum {number}
- */
-const MSG_SIEGE = {
-  STARTED: 900,
-  PROGRESS: 901,
-  COMPLETED: 902,
-  FAILED: 903,
-  RETREATED: 904,
-}
-
-/**
- * Message codes for QUAD category
- * @enum {number}
- */
-const MSG_QUAD = {
-  FORMED: 1000,
-  ATTACK: 1001,
-  DISBANDED: 1002,
-  DAMAGED: 1003,
-  DESTROYED: 1004,
-}
-
-/**
- * Message codes for INTEL category
- * @enum {number}
- */
-const MSG_INTEL = {
-  UPDATED: 1100,
-  THREAT_DETECTED: 1101,
-  OPPORTUNITY: 1102,
-  CONFIRMED: 1103,
-  EXPIRED: 1104,
-}
-
-/**
- * Message codes for OBSERVER category
- * @enum {number}
- */
-const MSG_OBSERVER = {
-  COMPLETE: 1200,
-  FAILED: 1201,
-  SCHEDULED: 1202,
-  CANCELLED: 1203,
-  DATA: 1204,
-}
-
-/**
- * Message codes for EXPAND category
- * @enum {number}
- */
-const MSG_EXPAND = {
-  STARTED: 1300,
-  AVAILABLE: 1301,
-  FAILED: 1302,
-  COMPLETED: 1303,
-  CANCELLED: 1304,
-}
-
-/**
- * Message codes for CPU category
- * @enum {number}
- */
-const MSG_CPU = {
-  CRITICAL: 1400,
-  HIGH: 1401,
-  NORMAL: 1402,
-  EXCEEDED: 1403,
-  BUCKET_LOW: 1404,
-}
-
-/**
- * Message codes for MEM category
- * @enum {number}
- */
-const MSG_MEM = {
-  CRITICAL: 1500,
-  HIGH: 1501,
-  NORMAL: 1502,
-  CORRUPTED: 1503,
-  RESET: 1504,
-}
-
-/**
- * Message codes for ERROR category
- * @enum {number}
- */
-const MSG_ERROR = {
-  CRITICAL: 1600,
-  UNEXPECTED: 1601,
-  VALIDATION: 1602,
-  RECOVERY_FAILED: 1603,
-  ROLLBACK: 1604,
-}
-
-/**
- * Message codes for SYSTEM category
- * @enum {number}
- */
-const MSG_SYSTEM = {
-  RESET: 1700,
-  STARTUP: 1701,
-  SHUTDOWN: 1702,
-  CHECK: 1703,
-  RECOVER: 1704,
-}
-
 // ============================================================================
 // HELPER UTILITIES
 // ============================================================================
-
-/**
- * Converts enum key to human-readable text
- * Transforms snake_case to Title Case (e.g., 'SPAWN_ROOM' becomes 'Spawn Room')
- * @param {string} key - The enum key to humanize
- * @returns {string} The humanized text
- */
-function humanize(key) {
-  return key
-    .toLowerCase()
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
 
 /**
  * Builds a lookup dictionary mapping enum values to human-readable names
@@ -335,34 +127,9 @@ function humanize(key) {
 function buildTextDict(enumObj) {
   const out = {}
   for (const [key, val] of Object.entries(enumObj)) {
-    out[val] = humanize(key)
+    out[val] = key
   }
   return out
-}
-
-/**
- * Message text lookup dictionary
- * Maps message codes to human-readable descriptions
- * @type {Object<number, string>}
- */
-const MSG_TEXT = {
-  ...buildTextDict(MSG_SPAWN),
-  ...buildTextDict(MSG_MOVE),
-  ...buildTextDict(MSG_PATH),
-  ...buildTextDict(MSG_ECON),
-  ...buildTextDict(MSG_CLAIM),
-  ...buildTextDict(MSG_LAB),
-  ...buildTextDict(MSG_DEFENSE),
-  ...buildTextDict(MSG_OFFENSE),
-  ...buildTextDict(MSG_SIEGE),
-  ...buildTextDict(MSG_QUAD),
-  ...buildTextDict(MSG_INTEL),
-  ...buildTextDict(MSG_OBSERVER),
-  ...buildTextDict(MSG_EXPAND),
-  ...buildTextDict(MSG_CPU),
-  ...buildTextDict(MSG_MEM),
-  ...buildTextDict(MSG_ERROR),
-  ...buildTextDict(MSG_SYSTEM),
 }
 
 // ============================================================================
@@ -556,24 +323,31 @@ function render(entry) {
     tick = t
   }
 
-  const msg = MSG_TEXT[m] || `MSG_${m}`
-  let line = `[${time} ${tick}] [${LEVEL_NAME[l]}] [${CAT_NAME[c]}] [${roomName}] ${msg}`
+  let line = `[${time} ${tick}] [${LEVEL_NAME[l]}] [${CAT_NAME[c]}] [${roomName}] ${m}`
 
   if (d) {
     line += " ("
     line += Object.entries(d)
-      .map(([k, v]) => `${k}=${v}`)
+      .map(([k, v]) => `${k}:${v}`)
       .join(", ")
     line += ")"
   }
 
   // visual hierarchy (console only)
   if (f && f.context) {
-    console.logUnsafe(`<span style="color:#888;font-style:italic">${line}</span>`)
+    if (isMMO) {
+      console.logUnsafe(`<span style="color:#888;font-style:italic">${line}</span>`)
+    } else {
+      console.log(`<span style="color:#888;font-style:italic">${line}</span>`)
+    }
   } else {
     const color = LEVEL_COLORS[l]
-    console.log(color)
-    console.logUnsafe(`<span style="color:${color}">${line}</span>`)
+
+    if (isMMO) {
+      console.logUnsafe(`<span style="color:${color}">${line}</span>`)
+    } else {
+      console.log(`<span style="color:${color}">${line}</span>`)
+    }
   }
 
   return line
@@ -659,6 +433,34 @@ function emit(level, cat, roomName, msg, data, flags) {
  * @namespace Logger
  */
 const Logger = {
+  printLogs(predicate) {
+    const logs = this.getLogs(predicate)
+
+    logs.forEach((entry) => render(entry))
+  },
+
+  /**
+   *
+   * @param {function} [predicate] - function(entry) => boolean. Only entries for which the predicate returns tru will be returned.
+   * @returns {Array} Get the log entries that are stored in heap
+   */
+  getLogs(predicate) {
+    const result = []
+
+    const r = global.__logRing
+
+    for (let i = 0; i < r.size; i++) {
+      const index = (r.head + i) % r.size
+      const entry = r.buf[index]
+      if (!entry || (predicate && !predicate(entry))) {
+        continue
+      }
+      result.push(entry)
+    }
+
+    return result
+  },
+
   /**
    * Sets the minimum log level for output
    * @param {string} name - Log level name ('ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE')
@@ -688,113 +490,95 @@ const Logger = {
    * Logs an error
    * Errors are automatically notified via game notifications
    * @param {number} cat - Log category
-   * @param {string} room - Room name
+   * @param {string} roomName - Room name
    * @param {number} msg - Message code
    * @param {Object} [data] - Additional data
    * @param {Object} [flags] - Options for notification control
    * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
    */
-  error(cat, room, msg, data, flags) {
-    emit(LOG_LEVEL.ERROR, cat, room, msg, data, flags)
+  error(cat, roomName, msg, data, flags) {
+    emit(LOG_LEVEL.ERROR, cat, roomName, msg, data, flags)
   },
 
   /**
    * Logs a warning
    * Warnings are automatically notified via game notifications
    * @param {number} cat - Log category
-   * @param {string} room - Room name
+   * @param {string} roomName - Room name
    * @param {number} msg - Message code
    * @param {Object} [data] - Additional data
    * @param {Object} [flags] - Options for notification control
    * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
    */
-  warn(cat, room, msg, data, flags) {
-    emit(LOG_LEVEL.WARN, cat, room, msg, data, flags)
+  warn(cat, roomName, msg, data, flags) {
+    emit(LOG_LEVEL.WARN, cat, roomName, msg, data, flags)
   },
 
   /**
    * Logs info level message
    * Use flags.notify to send notification for interesting events
    * @param {number} cat - Log category
-   * @param {string} room - Room name
+   * @param {string} roomName - Room name
    * @param {number} msg - Message code
    * @param {Object} [data] - Additional data
    * @param {Object} [flags] - Options for notification control
    * @param {boolean} [flags.notify] - Force notification for this log
    * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
    */
-  info(cat, room, msg, data, flags) {
-    emit(LOG_LEVEL.INFO, cat, room, msg, data, flags)
+  info(cat, roomName, msg, data, flags) {
+    emit(LOG_LEVEL.INFO, cat, roomName, msg, data, flags)
   },
 
   /**
    * Logs debug level message
    * Use flags.notify to send notification for important debug events
    * @param {number} cat - Log category
-   * @param {string} room - Room name
+   * @param {string} roomName - Room name
    * @param {number} msg - Message code
    * @param {Object} [data] - Additional data
    * @param {Object} [flags] - Options for notification control
    * @param {boolean} [flags.notify] - Force notification for this log
    * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
    */
-  debug(cat, room, msg, data, flags) {
-    emit(LOG_LEVEL.DEBUG, cat, room, msg, data, flags)
+  debug(cat, roomName, msg, data, flags) {
+    emit(LOG_LEVEL.DEBUG, cat, roomName, msg, data, flags)
   },
 
   /**
    * Logs trace level message (most verbose)
    * Use flags.notify to send notification for important trace events
    * @param {number} cat - Log category
-   * @param {string} room - Room name
+   * @param {string} roomName - Room name
    * @param {number} msg - Message code
    * @param {Object} [data] - Additional data
    * @param {Object} [flags] - Options for notification control
    * @param {boolean} [flags.notify] - Force notification for this log
    * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
    */
-  trace(cat, room, msg, data, flags) {
-    emit(LOG_LEVEL.TRACE, cat, room, msg, data, flags)
+  trace(cat, roomName, msg, data, flags) {
+    emit(LOG_LEVEL.TRACE, cat, roomName, msg, data, flags)
   },
 
   /**
    * Logs a context message with special styling (warning level)
    * Provides visual hierarchy for related log groups
    * @param {number} cat - Log category
-   * @param {string} room - Room name
+   * @param {string} roomName - Room name
    * @param {number} msg - Message code
    * @param {Object} [data] - Additional data
    * @param {Object} [flags] - Options for notification control
    * @param {boolean} [flags.notify] - Force notification for this log
    * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
    */
-  context(cat, room, msg, data, flags = {}) {
+  context(cat, roomName, msg, data, flags = {}) {
     flags.context = true
-    emit(LOG_LEVEL.WARN, cat, room, msg, data, flags)
+    emit(LOG_LEVEL.WARN, cat, roomName, msg, data, flags)
   },
 }
 
 module.exports = {
   LOG_LEVEL,
   LOG_CAT,
-  MSG_SPAWN,
-  MSG_MOVE,
-  MSG_PATH,
-  MSG_ECON,
-  MSG_CLAIM,
-  MSG_LAB,
-  MSG_DEFENSE,
-  MSG_OFFENSE,
-  MSG_SIEGE,
-  MSG_QUAD,
-  MSG_INTEL,
-  MSG_OBSERVER,
-  MSG_EXPAND,
-  MSG_CPU,
-  MSG_MEM,
-  MSG_ERROR,
-  MSG_SYSTEM,
-  MSG_TEXT,
   getRoomLink,
   getReplayLink,
   Logger,
