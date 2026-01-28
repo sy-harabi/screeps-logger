@@ -1,441 +1,770 @@
 /**
- * Logger module for Screeps
- * Provides structured logging with different severity levels, formatting, and memory persistence.
+ * @fileoverview Screeps logging module providing a comprehensive logging system with
+ * multiple log levels, categories, and output rendering capabilities. Supports console
+ * output with HTML styling, log storage via ring buffer, and game notifications.
+ *
+ * Features:
+ * - 5 log levels (ERROR, WARN, INFO, DEBUG, TRACE)
+ * - 17 log categories (SPAWN, MOVE, PATH, DEFENSE, etc.)
+ * - Ring buffer storage for limited log history
+ * - HTML-formatted console output with color coding
+ * - Screeps game notifications for important events
+ * - Room link generation with replay support
+ * - Time formatting adjusted for regional timezone
  */
 
-const TIME_OFFSET = 540 // UTC time offset. Adjust this to your region
+// ============================================================================
+// CONSTANTS
+// ============================================================================
 
+/** UTC time offset in minutes. Adjust this to your region */
+const TIME_OFFSET = 540
+
+/** Maximum number of log entries to store in the ring buffer */
 const MAX_LOG_NUM = 100
 
+/** Interval in minutes between consecutive notifications for the same message */
 const NOTIFY_INTERVAL = 60
 
+/**
+ * API endpoint paths for room and replay links
+ * @type {Object<string, string>}
+ */
 const PATH = {
-  jaysee: "http://jayseegames.localhost:8080/(http://jayseegames.com:21025)",
   shardSeason: "https://screeps.com/season",
-  DEFAULT: "https://screeps.com/a",
-  thunderdrone: "http://localhost:8080/(https://server.pandascreeps.com/)",
+  world: "https://screeps.com/a",
 }
 
-const LEVEL_NAMES = ["FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"]
+// ============================================================================
+// ENUMS / TYPES
+// ============================================================================
 
-const LOG_LEVELS = {
-  FATAL: 0, // errors that can stop the entire bot
-  ERROR: 1, // errors that might allow the bot to continue running
-  WARN: 2, // potentially harmful situations
-  INFO: 3, // highlight the progress of the bot or important events
-  DEBUG: 4, // events that are useful to debug
-  TRACE: 5, // minuscular events
+/**
+ * Log level enumeration
+ * @enum {number}
+ * @property {number} ERROR=0 Error level
+ * @property {number} WARN=1 Warning level
+ * @property {number} INFO=2 Information level
+ * @property {number} DEBUG=3 Debug level
+ * @property {number} TRACE=4 Trace level (most verbose)
+ */
+export const LOG_LEVEL = {
+  ERROR: 0,
+  WARN: 1,
+  INFO: 2,
+  DEBUG: 3,
+  TRACE: 4,
 }
 
-const DEFAULT_LOG_LEVEL = LOG_LEVELS.INFO
+/**
+ * Log category enumeration for organizing logs by functionality
+ * @enum {number}
+ * @property {number} SPAWN=0 Spawn management
+ * @property {number} MOVE=1 Movement operations
+ * @property {number} PATH=2 Pathfinding
+ * @property {number} ECON=3 Economic management
+ * @property {number} CLAIM=4 Room claiming
+ * @property {number} LAB=5 Laboratory operations
+ * @property {number} DEFENSE=6 Defense operations
+ * @property {number} OFFENSE=7 Offensive operations
+ * @property {number} SIEGE=8 Siege operations
+ * @property {number} QUAD=9 Quad squad operations
+ * @property {number} INTEL=10 Intelligence gathering
+ * @property {number} OBSERVER=11 Observer operations
+ * @property {number} EXPAND=12 Expansion planning
+ * @property {number} CPU=13 CPU management
+ * @property {number} MEM=14 Memory management
+ * @property {number} ERROR=15 Error reporting
+ * @property {number} SYSTEM=16 System operations
+ */
+export const LOG_CAT = {
+  // --- Core ---
+  SPAWN: 0,
+  MOVE: 1,
+  PATH: 2,
+  ECON: 3,
+  CLAIM: 4,
+  LAB: 5,
 
-const NOTIFY_LOG_LEVEL = LOG_LEVELS.WARN // notify via emial if log level is WARN or higher severity
+  // --- Combat ---
+  DEFENSE: 6,
+  OFFENSE: 7,
+  SIEGE: 8,
+  QUAD: 9,
 
+  // --- Planning / Intel ---
+  INTEL: 10,
+  OBSERVER: 11,
+  EXPAND: 12,
+
+  // --- Infra ---
+  CPU: 13,
+  MEM: 14,
+  ERROR: 15,
+  SYSTEM: 16,
+}
+
+/**
+ * Message codes for SPAWN category
+ * @enum {number}
+ */
+export const MSG_SPAWN = {
+  SUCCESS: 100,
+  FAILED: 101,
+  QUEUED: 102,
+  CANCELLED: 103,
+  ENERGY_LOW: 104,
+}
+
+/**
+ * Message codes for MOVE category
+ * @enum {number}
+ */
+export const MSG_MOVE = {
+  STARTED: 200,
+  BLOCKED: 201,
+  STUCK: 202,
+  FAILED: 203,
+  COMPLETED: 204,
+}
+
+/**
+ * Message codes for PATH category
+ * @enum {number}
+ */
+export const MSG_PATH = {
+  FOUND: 300,
+  NOT_FOUND: 301,
+  BLOCKED: 302,
+  RECALCULATING: 303,
+  FAILED: 304,
+}
+
+/**
+ * Message codes for ECON category
+ * @enum {number}
+ */
+export const MSG_ECON = {
+  RESOURCES_LOW: 400,
+  STORAGE_FULL: 401,
+  STORAGE_EMPTY: 402,
+  ENERGY_SHORTAGE: 403,
+  ENERGY_SURPLUS: 404,
+}
+
+/**
+ * Message codes for CLAIM category
+ * @enum {number}
+ */
+export const MSG_CLAIM = {
+  STARTED: 500,
+  SUCCESS: 501,
+  FAILED: 502,
+  ATTACKED: 503,
+  RESERVED: 504,
+}
+
+/**
+ * Message codes for LAB category
+ * @enum {number}
+ */
+export const MSG_LAB = {
+  REACTION_START: 600,
+  REACTION_COMPLETE: 601,
+  REACTION_FAILED: 602,
+  DELIVER_FAILED: 603,
+  EMPTY: 604,
+}
+
+/**
+ * Message codes for DEFENSE category
+ * @enum {number}
+ */
+export const MSG_DEFENSE = {
+  ENEMY_DETECTED: 700,
+  DEFEND_START: 701,
+  DEFEND_LOST: 702,
+  DEFEND_WON: 703,
+  WALL_BREACHED: 704,
+}
+
+/**
+ * Message codes for OFFENSE category
+ * @enum {number}
+ */
+export const MSG_OFFENSE = {
+  ATTACK_STARTED: 800,
+  ATTACK_SUCCESS: 801,
+  ATTACK_FAILED: 802,
+  TARGET_DESTROYED: 803,
+  RETREAT: 804,
+}
+
+/**
+ * Message codes for SIEGE category
+ * @enum {number}
+ */
+export const MSG_SIEGE = {
+  STARTED: 900,
+  PROGRESS: 901,
+  COMPLETED: 902,
+  FAILED: 903,
+  RETREATED: 904,
+}
+
+/**
+ * Message codes for QUAD category
+ * @enum {number}
+ */
+export const MSG_QUAD = {
+  FORMED: 1000,
+  ATTACK: 1001,
+  DISBANDED: 1002,
+  DAMAGED: 1003,
+  DESTROYED: 1004,
+}
+
+/**
+ * Message codes for INTEL category
+ * @enum {number}
+ */
+export const MSG_INTEL = {
+  UPDATED: 1100,
+  THREAT_DETECTED: 1101,
+  OPPORTUNITY: 1102,
+  CONFIRMED: 1103,
+  EXPIRED: 1104,
+}
+
+/**
+ * Message codes for OBSERVER category
+ * @enum {number}
+ */
+export const MSG_OBSERVER = {
+  COMPLETE: 1200,
+  FAILED: 1201,
+  SCHEDULED: 1202,
+  CANCELLED: 1203,
+  DATA: 1204,
+}
+
+/**
+ * Message codes for EXPAND category
+ * @enum {number}
+ */
+export const MSG_EXPAND = {
+  STARTED: 1300,
+  AVAILABLE: 1301,
+  FAILED: 1302,
+  COMPLETED: 1303,
+  CANCELLED: 1304,
+}
+
+/**
+ * Message codes for CPU category
+ * @enum {number}
+ */
+export const MSG_CPU = {
+  CRITICAL: 1400,
+  HIGH: 1401,
+  NORMAL: 1402,
+  EXCEEDED: 1403,
+  BUCKET_LOW: 1404,
+}
+
+/**
+ * Message codes for MEM category
+ * @enum {number}
+ */
+export const MSG_MEM = {
+  CRITICAL: 1500,
+  HIGH: 1501,
+  NORMAL: 1502,
+  CORRUPTED: 1503,
+  RESET: 1504,
+}
+
+/**
+ * Message codes for ERROR category
+ * @enum {number}
+ */
+export const MSG_ERROR = {
+  CRITICAL: 1600,
+  UNEXPECTED: 1601,
+  VALIDATION: 1602,
+  RECOVERY_FAILED: 1603,
+  ROLLBACK: 1604,
+}
+
+/**
+ * Message codes for SYSTEM category
+ * @enum {number}
+ */
+export const MSG_SYSTEM = {
+  RESET: 1700,
+  STARTUP: 1701,
+  SHUTDOWN: 1702,
+  CHECK: 1703,
+  RECOVER: 1704,
+}
+
+// ============================================================================
+// HELPER UTILITIES
+// ============================================================================
+
+/**
+ * Converts enum key to human-readable text
+ * Transforms snake_case to Title Case (e.g., 'SPAWN_ROOM' becomes 'Spawn Room')
+ * @param {string} key - The enum key to humanize
+ * @returns {string} The humanized text
+ */
+function humanize(key) {
+  return key
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+/**
+ * Builds a lookup dictionary mapping enum values to human-readable names
+ * @param {Object} enumObj - Enum object with key-value pairs
+ * @returns {Object} Dictionary mapping numeric values to humanized names
+ */
+function buildTextDict(enumObj) {
+  const out = {}
+  for (const [key, val] of Object.entries(enumObj)) {
+    out[val] = humanize(key)
+  }
+  return out
+}
+
+/**
+ * Message text lookup dictionary
+ * Maps message codes to human-readable descriptions
+ * @type {Object<number, string>}
+ */
+export const MSG_TEXT = {
+  ...buildTextDict(MSG_SPAWN),
+  ...buildTextDict(MSG_MOVE),
+  ...buildTextDict(MSG_PATH),
+  ...buildTextDict(MSG_ECON),
+  ...buildTextDict(MSG_CLAIM),
+  ...buildTextDict(MSG_LAB),
+  ...buildTextDict(MSG_DEFENSE),
+  ...buildTextDict(MSG_OFFENSE),
+  ...buildTextDict(MSG_SIEGE),
+  ...buildTextDict(MSG_QUAD),
+  ...buildTextDict(MSG_INTEL),
+  ...buildTextDict(MSG_OBSERVER),
+  ...buildTextDict(MSG_EXPAND),
+  ...buildTextDict(MSG_CPU),
+  ...buildTextDict(MSG_MEM),
+  ...buildTextDict(MSG_ERROR),
+  ...buildTextDict(MSG_SYSTEM),
+}
+
+// ============================================================================
+// RENDERING CONFIGURATION
+// ============================================================================
+
+/**
+ * Color map for log level visualization in console output
+ * @type {Object<string, string>}
+ */
 const LEVEL_COLORS = {
-  FATAL: "#C0392B", // Darker Red
   ERROR: "#B22222", // Firebrick
   WARN: "#B8860B", // Dark Goldenrod
   INFO: "#0055AA", // Deep Blue
   DEBUG: "#228B22", // Forest Green
   TRACE: "#555555", // Gray
-  DEFAULT: "#dddddd", // Light Gray
 }
 
 /**
- * @typedef Entry - log entry
- * @property {number} level - Log severity level.
- * @property {string|function} message - Log message or function returning a message.
- * @property {number} timestamp - Timestamp.
- * @property {number} tick - Game tick.
- * @property {string} [roomName] - Room name for the log.
- * @property {boolean} [memory] - Whether to store log in memory.
- * @property {boolean} [notify] - Whether to send a notification.
+ * Display names for log levels with padding
+ * @type {string[]}
  */
-
-class Logger {
-  /**
-   * Enables or disables log streaming to specific modules.
-   * @param {string|string[]} [names] - Names of modules to stream logs from.
-   */
-  static setStream(names) {
-    if (!Memory._logs) {
-      Memory._logs = {}
-    }
-
-    if (names === undefined) {
-      delete Memory._logs._stream
-      return
-    }
-
-    if (typeof names === "string") {
-      names = [names]
-    }
-
-    Memory._logs._stream = names
-  }
-
-  /**
-   * Retrieves the current log stream target.
-   * @returns {string[]} - Array of module names being streamed.
-   */
-  static getStreamTarget() {
-    if (!Memory._logs) {
-      Memory._logs = {}
-    }
-    return Memory._logs._stream
-  }
-
-  /**
-   * Clears all logs stored in memory.
-   */
-  static clearAll() {
-    if (!Memory._logs) {
-      return
-    }
-
-    for (const key in Memory._logs) {
-      if (key !== "._stream") {
-        delete Memory._logs[key]
-      }
-    }
-  }
-
-  /**
-   * Generates a formatted time string.
-   * @returns {string} - Formatted time string as YYYY.MM.DD. HH:MM.
-   */
-  static getReplayLink(roomName, tick = Game.time, msg = "replay") {
-    const front = PATH[Game.shard.name] || PATH["DEFAULT"]
-
-    return (
-      "<a href='" +
-      front +
-      "/#!/history/" +
-      Game.shard.name +
-      "/" +
-      roomURLescape(roomName) +
-      "?t=" +
-      tick +
-      "'>" +
-      msg +
-      "</a>"
-    )
-  }
-
-  /**
-   * Generates link to the room.
-   * @param {string} roomName
-   * @returns {string}
-   */
-  static getRoomLink(roomName) {
-    const url = getRoomUrl(roomName)
-    return `<a href="${url}" target="_blank">${roomName}</a>`
-  }
-
-  /**
-   * Formats a log entry.
-   * @param {string} name - Logger name.
-   * @param {Entry} entry - Log entry object.
-   * @returns {string} - Formatted log entry with colors.
-   */
-  static defaultFormat(name, entry) {
-    const { level, message, timestamp, tick = Game.time, roomName } = entry
-
-    const formattedTime = getFormattedTime(timestamp)
-
-    const levelName = LEVEL_NAMES[level]
-
-    const levelNameFormatted = levelName.padEnd(5, " ")
-
-    const nameFormatted = name.padEnd(10, " ")
-
-    let result = `[${formattedTime}] [${tick}] [${levelNameFormatted}] [${nameFormatted}] [${message}]`
-
-    if (roomName) {
-      const roomLink = Logger.getRoomLink(roomName)
-      result += ` [${roomLink}]`
-
-      const replayLink = Logger.getReplayLink(roomName, tick)
-      result += ` [${replayLink}]`
-    }
-
-    const color = LEVEL_COLORS[levelName] || LEVEL_COLORS["DEFAULT"]
-
-    return getColoredText(result, color)
-  }
-
-  static defaultMemoryCallback(entry) {
-    return entry.level <= LOG_LEVELS.INFO
-  }
-
-  static defaultNotifyCallback(entry) {
-    return entry.level <= LOG_LEVELS.WARN
-  }
-
-  /**
-   * Creates a new Logger instance.
-   * @param {string} name - Logger name.
-   * @param {object} [options] - Logger options.
-   * @param {number} [options.level] - Minimum log level.
-   * @param {number} [options.limit] - Maximum number of logs stored.
-   * @param {(Entry)=>string} [options.format] - Custom log formatting function.
-   * @param {(Entry)=>boolean} [options.notifyCallback]
-   * @param {(Entry)=>boolean} [options.memoryCallback]
-   */
-  constructor(name, options = {}) {
-    this.name = name
-    this.level = options.level || DEFAULT_LOG_LEVEL
-    this.limit = options.limit || MAX_LOG_NUM
-    this.format = options.format ? (entry) => options.format(name, entry) : (entry) => Logger.defaultFormat(name, entry)
-    this.notifyCallback = options.notifyCallback || Logger.defaultNotifyCallback
-    this.memoryCallback = options.memoryCallback || Logger.defaultMemoryCallback
-    return
-  }
-
-  /**
-   * @returns {{index:number}}
-   */
-  get memory() {
-    Memory._logs = Memory._logs || {}
-
-    Memory._logs[this.name] = Memory._logs[this.name] || {}
-
-    return Memory._logs[this.name]
-  }
-
-  /**
-   * @returns {[{level:number,message:string}]}
-   */
-  get logs() {
-    this.memory.logs = this.memory.logs || {}
-
-    return this.memory.logs || {}
-  }
-
-  /**
-   * Logs a fatal error message.
-   * @param {string|function} message - The message to log.
-   * @param {object} [options] - Additional log options.
-   * @param {string} [options.roomName] - Room name for the log.
-   * @param {number} [options.tick] - Game tick at the time of logging.
-   * @param {boolean} [options.notify] - Whether to send a notification.
-   * @param {boolean} [options.memory] - Whether to store log in memory.
-   */
-  fatal(message, options = {}) {
-    this.log({ level: LOG_LEVELS.FATAL, message, ...options })
-  }
-
-  /**
-   * Logs an error message.
-   * @param {string|function} message - The message to log.
-   * @param {object} [options] - Additional log options.
-   * @param {string} [options.roomName] - Room name for the log.
-   * @param {number} [options.tick] - Game tick at the time of logging.
-   * @param {boolean} [options.notify] - Whether to send a notification.
-   * @param {boolean} [options.memory] - Whether to store log in memory.
-   */
-  error(message, options = {}) {
-    this.log({ level: LOG_LEVELS.ERROR, message, ...options })
-  }
-
-  /**
-   * Logs a warning message.
-   * @param {string|function} message - The message to log.
-   * @param {object} [options] - Additional log options.
-   * @param {string} [options.roomName] - Room name for the log.
-   * @param {number} [options.tick] - Game tick at the time of logging.
-   * @param {boolean} [options.notify] - Whether to send a notification.
-   * @param {boolean} [options.memory] - Whether to store log in memory.
-   */
-  warn(message, options = {}) {
-    this.log({ level: LOG_LEVELS.WARN, message, ...options })
-  }
-
-  /**
-   * Logs an informational message.
-   * @param {string|function} message - The message to log.
-   * @param {object} [options] - Additional log options.
-   * @param {string} [options.roomName] - Room name for the log.
-   * @param {number} [options.tick] - Game tick at the time of logging.
-   * @param {boolean} [options.notify] - Whether to send a notification.
-   * @param {boolean} [options.memory] - Whether to store log in memory.
-   */
-  info(message, options = {}) {
-    this.log({ level: LOG_LEVELS.INFO, message, ...options })
-  }
-
-  /**
-   * Logs a debug message.
-   * @param {string|function} message - The message to log.
-   * @param {object} [options] - Additional log options.
-   * @param {string} [options.roomName] - Room name for the log.
-   * @param {number} [options.tick] - Game tick at the time of logging.
-   * @param {boolean} [options.notify] - Whether to send a notification.
-   * @param {boolean} [options.memory] - Whether to store log in memory.
-   */
-  debug(message, options = {}) {
-    this.log({ level: LOG_LEVELS.DEBUG, message, ...options })
-  }
-
-  /**
-   * Logs a trace message.
-   * @param {string|function} message - The message to log.
-   * @param {object} [options] - Additional log options.
-   * @param {string} [options.roomName] - Room name for the log.
-   * @param {number} [options.tick] - Game tick at the time of logging.
-   * @param {boolean} [options.notify] - Whether to send a notification.
-   * @param {boolean} [options.memory] - Whether to store log in memory.
-   */
-  trace(message, options = {}) {
-    this.log({ level: LOG_LEVELS.TRACE, message, ...options })
-  }
-
-  print() {
-    let num = 0
-    const currentIndex = this.memory.index
-
-    if (currentIndex === undefined) {
-      return
-    }
-
-    let index = currentIndex
-    let result = ""
-
-    do {
-      const entry = this.logs[index]
-
-      index = (index + 1) % this.limit
-
-      if (!entry) {
-        continue
-      }
-
-      num++
-
-      const text = this.format(entry)
-
-      result += "#" + String(num).padStart(2, "0") + text + "<br>"
-    } while (index !== currentIndex)
-
-    console.log(result)
-  }
-
-  clear() {
-    if (!Memory._logs) {
-      return
-    }
-
-    delete Memory._logs[this.name]
-  }
-
-  /**
-   * Logs a message at a specified level.
-   * @param {Entry} entry - Log entry object.
-   */
-  log(entry) {
-    if (Logger.getStreamTarget() && !Logger.getStreamTarget().includes(this.name)) {
-      return
-    }
-
-    if (!entry || entry.level === undefined || entry.level > this.getLevel()) {
-      return
-    }
-
-    if (typeof entry.message === "function") {
-      entry.message = entry.message()
-    }
-
-    entry.timestamp = Date.now()
-
-    entry.tick = entry.tick || Game.time
-
-    const formattedLog = this.format(entry)
-
-    console.log(formattedLog)
-
-    if (entry.notify === undefined) {
-      entry.notify = this.notifyCallback(entry)
-    }
-
-    if (entry.memory === undefined) {
-      entry.memory = this.memoryCallback(entry)
-    }
-
-    if (entry.memory) {
-      if (this.memory.index === undefined) {
-        this.memory.index = 0
-      }
-
-      this.logs[this.memory.index] = entry
-
-      this.memory.index = (this.memory.index + 1) % this.limit
-    }
-
-    if (entry.notify) {
-      Game.notify(formattedLog, NOTIFY_INTERVAL)
-    }
-  }
-
-  setLevel(level) {
-    this.level = level
-  }
-
-  getLevel() {
-    return this.level
-  }
-}
-
-function roomURLescape(roomName) {
-  let mapping = { N: "%4E", S: "%53", E: "%45", W: "%57" }
-  let out = ""
-  for (var i = 0; i < roomName.length; i++) {
-    let c = roomName[i]
-    out += mapping[c] || c
-  }
-  return out
-}
-
-function getRoomUrl(roomName) {
-  const front = PATH[Game.shard.name] || PATH["DEFAULT"]
-
-  return front + `/#!/room/${Game.shard.name}/${roomURLescape(roomName)}`
+const LEVEL_NAME = ["ERROR", "WARN ", "INFO ", "DEBUG", "TRACE"]
+
+// ============================================================================
+// RING BUFFER (LOG STORAGE)
+// ============================================================================
+
+/**
+ * Ring buffer for storing recent log entries
+ * Maintains a fixed-size circular buffer with FIFO semantics
+ * @type {Object}
+ * @property {number} head - Current write position in buffer
+ * @property {number} size - Total buffer capacity
+ * @property {Array} buf - Circular buffer array storing log entries
+ */
+global.__logRing = {
+  head: 0,
+  size: MAX_LOG_NUM,
+  buf: new Array(MAX_LOG_NUM),
 }
 
 /**
- *
+ * Adds a log entry to the ring buffer
+ * @param {Object} entry - Log entry object
+ */
+function pushRing(entry) {
+  const r = global.__logRing
+  r.buf[r.head] = entry
+  r.head = (r.head + 1) % r.size
+}
+
+// ============================================================================
+// TIME UTILITIES
+// ============================================================================
+
+/** Cached formatted time string */
+let formattedTimeTick, formattedTime
+
+/**
+ * Formats a timestamp to a human-readable string with regional timezone adjustment
+ * Caches result per game tick for performance
+ * @param {number} timestamp - Millisecond timestamp (from Date.now())
  * @returns {string} Time formatted as YYYY.MM.DD. HH:MM
  */
 function getFormattedTime(timestamp) {
+  if (formattedTimeTick === Game.time) {
+    return formattedTime
+  }
+
+  formattedTimeTick = Game.time
+
   function pad(number) {
     return String(number).padStart(2, "0")
   }
 
   const now = new Date(timestamp)
   const utcNow = now.getTime() + now.getTimezoneOffset() * 60 * 1000
-  const koreaNow = utcNow + TIME_OFFSET * 60 * 1000
-  const koreaDate = new Date(koreaNow)
+  const timezoneNow = utcNow + TIME_OFFSET * 60 * 1000
+  const timezoneDate = new Date(timezoneNow)
 
-  const month = pad(koreaDate.getMonth() + 1)
-  const date = pad(koreaDate.getDate())
+  const month = pad(timezoneDate.getMonth() + 1)
+  const date = pad(timezoneDate.getDate())
 
-  const hours = pad(koreaDate.getHours())
-  const minutes = pad(koreaDate.getMinutes())
+  const hours = pad(timezoneDate.getHours())
+  const minutes = pad(timezoneDate.getMinutes())
 
-  const result = `${koreaDate.getFullYear()}.${month}.${date}. ${hours}:${minutes}`
-
-  formattedTimeTick = Game.time
+  const result = `${timezoneDate.getFullYear()}.${month}.${date}. ${hours}:${minutes}`
 
   return (formattedTime = result)
 }
 
+// ============================================================================
+// URL & LINK UTILITIES
+// ============================================================================
+
 /**
- *
- * @param {string} text
- * @param {string} color
- * @returns
+ * Escapes special characters in room names for use in URLs
+ * Converts N/S/E/W directional characters to URL-encoded format
+ * @param {string} roomName - The room name to escape
+ * @returns {string} URL-safe room name
  */
-function getColoredText(text, color) {
-  return String(`<span style = "color: ${color}">${text}</span>`)
+function roomURLescape(roomName) {
+  let mapping = { N: "%4E", S: "%53", E: "%45", W: "%57" }
+  let out = ""
+  for (let i = 0; i < roomName.length; i++) {
+    let c = roomName[i]
+    out += mapping[c] || c
+  }
+  return out
 }
 
-module.exports = Logger
+/**
+ * Generates a URL to a Screeps room viewer
+ * @param {string} roomName - The room to link to
+ * @returns {string} Full URL to the room
+ */
+function getRoomUrl(roomName) {
+  const front = PATH[Game.shard.name] || PATH["world"]
+
+  return front + `/#!/room/${Game.shard.name}/${roomURLescape(roomName)}`
+}
+
+/**
+ * Generates an HTML link to a Screeps room
+ * @param {string} roomName - The room name to link
+ * @returns {string} HTML anchor tag with room link
+ */
+export function getRoomLink(roomName) {
+  const url = getRoomUrl(roomName)
+  return `<a href="${url}" target="_blank">${roomName}</a>`
+}
+
+/**
+ * Generates an HTML link to a room's replay at a specific tick
+ * @param {string} roomName - The room to replay
+ * @param {number} [tick=Game.time] - The game tick to replay (defaults to current)
+ * @param {string} [msg="replay"] - The link text
+ * @returns {string} HTML anchor tag with replay link
+ */
+export function getReplayLink(roomName, tick = Game.time, msg = "replay") {
+  const front = PATH[Game.shard.name] || PATH["world"]
+
+  return (
+    "<a href='" +
+    front +
+    "/#!/history/" +
+    Game.shard.name +
+    "/" +
+    roomURLescape(roomName) +
+    "?t=" +
+    tick +
+    "'>" +
+    msg +
+    "</a>"
+  )
+}
+
+// ============================================================================
+// RENDERING
+// ============================================================================
+
+/**
+ * Renders a log entry as a formatted string with HTML styling for console output
+ * Applies color coding based on log level and special styling for context logs
+ * @param {Object} entry - The log entry to render
+ * @param {number} entry.t - Game tick when log was created
+ * @param {number} entry.ts - Millisecond timestamp
+ * @param {number} entry.l - Log level (0-4)
+ * @param {number} entry.c - Log category
+ * @param {string} entry.r - Room name (optional)
+ * @param {number} entry.m - Message code
+ * @param {Object} entry.d - Data dictionary (optional)
+ * @param {Object} entry.f - Flags object (optional)
+ * @returns {string} Formatted log line
+ */
+export function render(entry) {
+  const { t, ts, l, c, r, m, d, f } = entry
+
+  const time = getFormattedTime(ts)
+
+  let tick
+
+  let roomName
+
+  if (r) {
+    roomName = getRoomLink(r)
+    tick = getReplayLink(r, t)
+  } else {
+    roomName = "--"
+    tick = t
+  }
+
+  const msg = MSG_TEXT[m] ?? `MSG_${m}`
+  let line = `${time} ${tick} ${LEVEL_NAME[l]} ${c} ${roomName} ${msg}`
+
+  if (d) {
+    for (const [k, v] of Object.entries(d)) {
+      line += ` ${k}=${v}`
+    }
+  }
+
+  // visual hierarchy (console only)
+  if (f && f.context) {
+    console.log(`<span style="color:#888;font-style:italic">${line}</span>`)
+  } else {
+    const color = LEVEL_COLORS[LEVEL_NAME[l]]
+    console.log(`<span style="color:${color}">${line}</span>`)
+  }
+
+  return line
+}
+
+// ============================================================================
+// CORE LOGGING
+// ============================================================================
+
+/**
+ * Logger configuration
+ * @type {Object}
+ * @property {number} level - Minimum log level to output (0-4)
+ * @property {Set|null} enabledCats - Set of enabled categories, null means all
+ */
+const CFG = {
+  level: LOG_LEVEL.INFO,
+  enabledCats: null, // null = all
+}
+
+/**
+ * Checks if a log entry should be emitted based on configuration
+ * @param {number} level - The log level
+ * @param {number} cat - The log category
+ * @returns {boolean} True if the log should be emitted
+ */
+function enabled(level, cat) {
+  if (level > CFG.level) return false
+  if (CFG.enabledCats && !CFG.enabledCats.has(cat)) return false
+  return true
+}
+
+/**
+ * Determines if a log entry should trigger a game notification
+ * By default only errors trigger notifications
+ * @param {number} level - The log level
+ * @param {number} msg - The message code
+ * @returns {boolean} True if notification should be sent
+ */
+export function shouldNotify(level, msg) {
+  return level <= LOG_LEVEL.WARN
+}
+
+/**
+ * Emits a log entry with rendering and notification handling
+ * @param {number} level - Log level (0-4)
+ * @param {number} cat - Log category
+ * @param {string} roomName - Room name (optional)
+ * @param {number} msg - Message code
+ * @param {Object} data - Additional data dictionary (optional)
+ * @param {Object} flags - Flags object with notification options (optional)
+ * @param {boolean} [flags.notify] - Force notification even if below error/warn level
+ * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
+ * @private
+ */
+function emit(level, cat, roomName, msg, data, flags) {
+  if (!enabled(level, cat)) return
+
+  const entry = {
+    t: Game.time,
+    ts: Date.now(),
+    l: level,
+    c: cat,
+    r: roomName,
+    m: msg,
+    d: data,
+    f: flags,
+  }
+
+  const line = render(entry)
+
+  pushRing(entry)
+
+  if (shouldNotify(level, msg) || (flags && flags.notify)) {
+    const interval = level === LOG_LEVEL.ERROR || (flags && flags.notifyNow) ? 0 : NOTIFY_INTERVAL
+    Game.notify(line, interval)
+  }
+}
+
+/**
+ * Main Logger API
+ * Provides methods for logging at different levels and managing configuration
+ * @namespace Logger
+ */
+export const Logger = {
+  /**
+   * Sets the minimum log level for output
+   * @param {string} name - Log level name ('ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE')
+   */
+  setLevel(name) {
+    CFG.level = LOG_LEVEL[name]
+  },
+
+  /**
+   * Enables logging for a specific category
+   * Can be called multiple times to enable multiple categories
+   * @param {number} cat - Category constant from LOG_CAT enum
+   */
+  enableCategory(cat) {
+    if (!CFG.enabledCats) {
+      CFG.enabledCats = new Set()
+    }
+
+    CFG.enabledCats.add(cat)
+  },
+
+  clearCategory() {
+    CFG.enabledCats = null
+  },
+
+  /**
+   * Logs an error
+   * Errors are automatically notified via game notifications
+   * @param {number} cat - Log category
+   * @param {string} room - Room name
+   * @param {number} msg - Message code
+   * @param {Object} [data] - Additional data
+   * @param {Object} [flags] - Options for notification control
+   * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
+   */
+  error(cat, room, msg, data, flags) {
+    emit(LOG_LEVEL.ERROR, cat, room, msg, data, flags)
+  },
+
+  /**
+   * Logs a warning
+   * Warnings are automatically notified via game notifications
+   * @param {number} cat - Log category
+   * @param {string} room - Room name
+   * @param {number} msg - Message code
+   * @param {Object} [data] - Additional data
+   * @param {Object} [flags] - Options for notification control
+   * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
+   */
+  warn(cat, room, msg, data, flags) {
+    emit(LOG_LEVEL.WARN, cat, room, msg, data, flags)
+  },
+
+  /**
+   * Logs info level message
+   * Use flags.notify to send notification for interesting events
+   * @param {number} cat - Log category
+   * @param {string} room - Room name
+   * @param {number} msg - Message code
+   * @param {Object} [data] - Additional data
+   * @param {Object} [flags] - Options for notification control
+   * @param {boolean} [flags.notify] - Force notification for this log
+   * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
+   */
+  info(cat, room, msg, data, flags) {
+    emit(LOG_LEVEL.INFO, cat, room, msg, data, flags)
+  },
+
+  /**
+   * Logs debug level message
+   * Use flags.notify to send notification for important debug events
+   * @param {number} cat - Log category
+   * @param {string} room - Room name
+   * @param {number} msg - Message code
+   * @param {Object} [data] - Additional data
+   * @param {Object} [flags] - Options for notification control
+   * @param {boolean} [flags.notify] - Force notification for this log
+   * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
+   */
+  debug(cat, room, msg, data, flags) {
+    emit(LOG_LEVEL.DEBUG, cat, room, msg, data, flags)
+  },
+
+  /**
+   * Logs trace level message (most verbose)
+   * Use flags.notify to send notification for important trace events
+   * @param {number} cat - Log category
+   * @param {string} room - Room name
+   * @param {number} msg - Message code
+   * @param {Object} [data] - Additional data
+   * @param {Object} [flags] - Options for notification control
+   * @param {boolean} [flags.notify] - Force notification for this log
+   * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
+   */
+  trace(cat, room, msg, data, flags) {
+    emit(LOG_LEVEL.TRACE, cat, room, msg, data, flags)
+  },
+
+  /**
+   * Logs a context message with special styling (warning level)
+   * Provides visual hierarchy for related log groups
+   * @param {number} cat - Log category
+   * @param {string} room - Room name
+   * @param {number} msg - Message code
+   * @param {Object} [data] - Additional data
+   * @param {Object} [flags] - Options for notification control
+   * @param {boolean} [flags.notify] - Force notification for this log
+   * @param {boolean} [flags.notifyNow] - Send immediately (bypass throttling)
+   */
+  context(cat, room, msg, data, flags = {}) {
+    flags.context = true
+    emit(LOG_LEVEL.WARN, cat, room, msg, data, flags)
+  },
+}
