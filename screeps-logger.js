@@ -577,7 +577,6 @@ const Logger = {
 }
 
 module.exports = {
-  LOG_LEVEL,
   LOG_CAT,
   getRoomLink,
   getReplayLink,
