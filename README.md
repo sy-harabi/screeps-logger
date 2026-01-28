@@ -1,4 +1,3 @@
-````markdown
 # Screeps Logger
 
 A comprehensive logging system for Screeps designed to provide structured console output, category-based filtering, and historical log persistence.
@@ -20,7 +19,6 @@ A comprehensive logging system for Screeps designed to provide structured consol
 ```javascript
 const { Logger, LOG_CAT } = require("screeps-logger")
 ```
-````
 
 ## Usage
 
