@@ -132,6 +132,48 @@ function buildTextDict(enumObj) {
   return out
 }
 
+/**
+ * Formats a value for log output without JSON's excessive quotes
+ * @param {*} value - Any value to format
+ * @param {number} [depth=0] - Current recursion depth
+ * @param {number} [maxDepth=3] - Maximum recursion depth
+ * @returns {string} Formatted string representation
+ */
+function formatValue(value, depth = 0, maxDepth = 3) {
+  // Prevent infinite recursion
+  if (depth > maxDepth) {
+    return "[...]"
+  }
+  // Handle null/undefined
+  if (value === null) return "null"
+  if (value === undefined) return "undefined"
+  // Handle primitives (string, number, boolean)
+  const type = typeof value
+  if (type === "string" || type === "number" || type === "boolean") {
+    return String(value)
+  }
+  // Handle arrays
+  if (Array.isArray(value)) {
+    const items = value.map((v) => formatValue(v, depth + 1, maxDepth))
+    return `[${items.join(", ")}]`
+  }
+  // Handle objects
+  if (type === "object") {
+    // Handle special Screeps objects with name or id
+    if (value.name && typeof value.name === "string") return value.name
+    if (value.id) return value.id
+    const pairs = Object.entries(value).map(([k, v]) => `${k}: ${formatValue(v, depth + 1, maxDepth)}`)
+    return `{${pairs.join(", ")}}`
+  }
+
+  // Handle functions
+  if (type === "function") {
+    return "[function]"
+  }
+
+  return String(value)
+}
+
 // ============================================================================
 // RENDERING CONFIGURATION
 // ============================================================================
@@ -328,29 +370,27 @@ function render(entry) {
   if (d) {
     line += " ("
     line += Object.entries(d)
-      .map(([k, v]) => `${k}:${v}`)
+      .map(([k, v]) => `${k}: ${formatValue(v)}`)
       .join(", ")
     line += ")"
   }
 
-  // visual hierarchy (console only)
+  let coloredLine
+
   if (f && f.context) {
-    if (isMMO) {
-      console.logUnsafe(`<span style="color:#888;font-style:italic">${line}</span>`)
-    } else {
-      console.log(`<span style="color:#888;font-style:italic">${line}</span>`)
-    }
+    coloredLine = `<span style="color:#888;font-style:italic">${line}</span>`
   } else {
     const color = LEVEL_COLORS[l]
-
-    if (isMMO) {
-      console.logUnsafe(`<span style="color:${color}">${line}</span>`)
-    } else {
-      console.log(`<span style="color:${color}">${line}</span>`)
-    }
+    coloredLine = `<span style="color:${color}">${line}</span>`
   }
 
-  return line
+  // Console output
+  if (isMMO) {
+    console.logUnsafe(coloredLine)
+  } else {
+    console.log(coloredLine)
+  }
+  return coloredLine
 }
 
 // ============================================================================
