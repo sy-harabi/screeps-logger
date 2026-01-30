@@ -152,17 +152,30 @@ function formatValue(value, depth = 0, maxDepth = 3) {
   if (type === "string" || type === "number" || type === "boolean") {
     return String(value)
   }
+
   // Handle arrays
   if (Array.isArray(value)) {
     const items = value.map((v) => formatValue(v, depth + 1, maxDepth))
     return `[${items.join(", ")}]`
   }
+
   // Handle objects
   if (type === "object") {
-    // Handle special Screeps objects with name or id
-    if (value.name && typeof value.name === "string") return value.name
-    if (value.id) return value.id
-    const pairs = Object.entries(value).map(([k, v]) => `${k}: ${formatValue(v, depth + 1, maxDepth)}`)
+    // handle game objects that has .toString() method
+    if (value.toString && value.toString !== Object.prototype.toString) {
+      let result = value.toString().replace(/\s?#\w+/, "")
+      if (value.pos) {
+        result += " " + value.pos.toString()
+      }
+      return result
+    }
+
+    // Plain objects
+    const pairs = Object.entries(value).reduce((prev, [k, v]) => {
+      if (v === undefined) return prev
+      prev.push(`${k}: ${formatValue(v, depth + 1, maxDepth)}`)
+      return prev
+    }, [])
     return `{${pairs.join(", ")}}`
   }
 
@@ -621,4 +634,5 @@ module.exports = {
   getRoomLink,
   getReplayLink,
   Logger,
+  formatValue,
 }
